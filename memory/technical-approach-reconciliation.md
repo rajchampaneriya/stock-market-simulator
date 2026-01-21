@@ -501,17 +501,42 @@ public class RedisStreamConsumer : BackgroundService
                 x => x.Name.ToString(), 
                 x => x.Value.ToString());
             
+            // Validate required fields exist
+            if (!values.TryGetValue("symbol", out var symbol) || string.IsNullOrWhiteSpace(symbol))
+            {
+                _logger.LogWarning("Missing or empty 'symbol' field in stream entry {EntryId}", entry.Id);
+                return null;
+            }
+            
+            if (!values.TryGetValue("price", out var priceStr) || !decimal.TryParse(priceStr, out var price))
+            {
+                _logger.LogWarning("Missing or invalid 'price' field in stream entry {EntryId}", entry.Id);
+                return null;
+            }
+            
+            if (!values.TryGetValue("volume", out var volumeStr) || !long.TryParse(volumeStr, out var volume))
+            {
+                _logger.LogWarning("Missing or invalid 'volume' field in stream entry {EntryId}", entry.Id);
+                return null;
+            }
+            
+            if (!values.TryGetValue("timestamp", out var timestampStr) || !DateTime.TryParse(timestampStr, out var timestamp))
+            {
+                _logger.LogWarning("Missing or invalid 'timestamp' field in stream entry {EntryId}, using current time", entry.Id);
+                timestamp = DateTime.UtcNow; // Fallback to current time
+            }
+            
             return new MarketDataEvent
             {
-                Symbol = values["symbol"],
-                Price = decimal.Parse(values["price"]),
-                Volume = long.Parse(values["volume"]),
-                Timestamp = DateTime.Parse(values["timestamp"])
+                Symbol = symbol,
+                Price = price,
+                Volume = volume,
+                Timestamp = timestamp
             };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to parse market data");
+            _logger.LogError(ex, "Unexpected error parsing market data from stream entry {EntryId}", entry.Id);
             return null;
         }
     }
