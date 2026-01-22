@@ -1,40 +1,76 @@
+using Microsoft.AspNetCore.Mvc;
+using Shared.Contracts;
+using StackExchange.Redis;
+using System.Text.Json;
+
 var builder = WebApplication.CreateBuilder(args);
 
+// Add services
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Redis connection
+var redisConnection = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
+builder.Services.AddSingleton<IConnectionMultiplexer>(
+    ConnectionMultiplexer.Connect(redisConnection));
+
+// Health checks
+builder.Services.AddHealthChecks()
+    .AddRedis(redisConnection);
+
 var app = builder.Build();
 
+// Configure middleware
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+app.MapHealthChecks("/health");
 
-var summaries = new[]
+// Market data endpoint
+app.MapPost("/api/marketdata", async (
+    [FromBody] MarketDataEvent marketData,
+    IConnectionMultiplexer redis,
+    ILogger<Program> logger) =>
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+    // Validation
+    if (string.IsNullOrWhiteSpace(marketData.Symbol))
+    {
+        logger.LogWarning("Invalid market data: missing symbol");
+        return Results.BadRequest("Symbol is required");
+    }
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
+    if (marketData.Price <= 0)
+    {
+        logger.LogWarning("Invalid market data: invalid price");
+        return Results.BadRequest("Price must be positive");
+    }
+
+    try
+    {
+        var db = redis.GetDatabase();
+        var json = JsonSerializer.Serialize(marketData);
+        
+        // Publish to Redis Stream
+        var messageId = await db.StreamAddAsync(
+            "marketdata:stream",
+            "data",
+            json);
+
+        logger.LogDebug("Published {Symbol} to stream with ID {MessageId}", 
+            marketData.Symbol, messageId);
+
+        return Results.Ok(new { messageId = messageId.ToString() });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Failed to publish market data for {Symbol}", 
+            marketData.Symbol);
+        return Results.StatusCode(500);
+    }
 })
-.WithName("GetWeatherForecast");
+.WithName("PublishMarketData");
 
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
