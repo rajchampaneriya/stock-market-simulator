@@ -1,4 +1,21 @@
+using Broker.Service;
+using StackExchange.Redis;
+using System.Threading.Channels;
+using Shared.Contracts;
+
 var builder = WebApplication.CreateBuilder(args);
+
+// Redis
+var redisConnection = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
+builder.Services.AddSingleton<IConnectionMultiplexer>(
+    ConnectionMultiplexer.Connect(redisConnection));
+
+// Channel for broadcasting
+builder.Services.AddSingleton(Channel.CreateUnbounded<MarketDataEvent>(
+    new UnboundedChannelOptions { SingleReader = false, SingleWriter = true }));
+
+// Background consumer
+builder.Services.AddHostedService<RedisStreamConsumer>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
