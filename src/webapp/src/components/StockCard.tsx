@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   Card,
   CardContent,
@@ -28,13 +28,13 @@ export const StockCard: React.FC<StockCardProps> = ({ security }) => {
 
   const TrendIcon = isPositive ? TrendingUp : isNegative ? TrendingDown : TrendingFlat;
 
-  const formatTimestamp = (timestamp: string) => {
+  const formatTimestamp = useCallback((timestamp: string) => {
     try {
       return format(new Date(timestamp), 'HH:mm:ss');
     } catch {
       return timestamp;
     }
-  };
+  }, []);
 
   return (
     <Card 

@@ -66,12 +66,6 @@ export function useMarketData(brokerUrl: string): UseMarketDataResult {
       setError('Connection lost. Reconnecting...');
     };
 
-    eventSource.onopen = () => {
-      console.log('SSE connection opened');
-      setIsConnected(true);
-      setError(null);
-    };
-
     return () => {
       console.log('Closing SSE connection');
       eventSource.close();
