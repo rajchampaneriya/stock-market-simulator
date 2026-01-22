@@ -72,18 +72,57 @@ public class ExchangeSimulator : BackgroundService
 
     private async Task SendToIngestion(MarketDataEvent data, CancellationToken ct)
     {
-        try
+        const int maxRetries = 3;
+        var retryCount = 0;
+        var delay = TimeSpan.FromMilliseconds(100);
+
+        while (retryCount < maxRetries)
         {
-            var httpClient = _httpClientFactory.CreateClient("IngestionApi");
-            var response = await httpClient.PostAsJsonAsync("/api/marketdata", data, ct);
-            response.EnsureSuccessStatusCode();
-            
-            _logger.LogDebug("Sent market data for {Symbol} at price {Price}", 
-                data.Symbol, data.Price);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to send market data for {Symbol}", data.Symbol);
+            try
+            {
+                var httpClient = _httpClientFactory.CreateClient("IngestionApi");
+                var response = await httpClient.PostAsJsonAsync("/api/marketdata", data, ct);
+                response.EnsureSuccessStatusCode();
+                
+                _logger.LogDebug("Sent market data for {Symbol} at price {Price}", 
+                    data.Symbol, data.Price);
+                return;
+            }
+            catch (HttpRequestException ex)
+            {
+                retryCount++;
+                _logger.LogWarning(ex, 
+                    "Failed to send {Symbol} (attempt {Attempt}/{Max})", 
+                    data.Symbol, retryCount, maxRetries);
+                
+                if (retryCount >= maxRetries)
+                {
+                    _logger.LogError("Max retries reached for {Symbol}, data may be lost", data.Symbol);
+                    return;
+                }
+                
+                await Task.Delay(delay, ct);
+                delay *= 2;
+            }
+            catch (TaskCanceledException ex)
+            {
+                _logger.LogWarning(ex, "Request timeout for {Symbol}", data.Symbol);
+                retryCount++;
+                
+                if (retryCount >= maxRetries)
+                {
+                    _logger.LogError("Max retries reached for {Symbol} due to timeouts", data.Symbol);
+                    return;
+                }
+                
+                await Task.Delay(delay, ct);
+                delay *= 2;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Unexpected error sending market data for {Symbol}", data.Symbol);
+                return;
+            }
         }
     }
 }

@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   Card,
   CardContent,
@@ -6,20 +6,26 @@ import {
   Box,
   Chip,
   Stack,
+  Button,
 } from '@mui/material';
 import {
   TrendingUp,
   TrendingDown,
   TrendingFlat,
+  ShowChart,
 } from '@mui/icons-material';
 import type { Security } from '../types';
+import type { OHLC } from '../utils/priceAggregator';
 import { format } from 'date-fns';
+import { CandlestickChart } from './CandlestickChart';
 
 interface StockCardProps {
   security: Security;
+  priceHistory?: OHLC[];
 }
 
-export const StockCard: React.FC<StockCardProps> = ({ security }) => {
+export const StockCard: React.FC<StockCardProps> = ({ security, priceHistory }) => {
+  const [showChart, setShowChart] = useState(false);
   const isPositive = security.change > 0;
   const isNegative = security.change < 0;
 
@@ -92,8 +98,27 @@ export const StockCard: React.FC<StockCardProps> = ({ security }) => {
               Updated: {formatTimestamp(security.lastUpdate)}
             </Typography>
           </Box>
+
+          <Box mt={1}>
+            <Button 
+              startIcon={<ShowChart />}
+              onClick={() => setShowChart(!showChart)}
+              size="small"
+              variant="outlined"
+              fullWidth
+            >
+              {showChart ? 'Hide' : 'Show'} Chart
+            </Button>
+          </Box>
         </Stack>
       </CardContent>
+
+      {showChart && priceHistory && priceHistory.length > 0 && (
+        <CandlestickChart 
+          data={priceHistory} 
+          symbol={security.symbol}
+        />
+      )}
     </Card>
   );
 };

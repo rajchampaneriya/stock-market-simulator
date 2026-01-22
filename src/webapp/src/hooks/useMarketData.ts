@@ -1,16 +1,22 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { MarketDataEvent, Security } from '../types';
+import { PriceAggregator, type OHLC } from '../utils/priceAggregator';
 
 interface UseMarketDataResult {
   securities: Map<string, Security>;
   isConnected: boolean;
   error: string | null;
+  priceHistory: Map<string, OHLC[]>;
 }
 
 export function useMarketData(brokerUrl: string): UseMarketDataResult {
   const [securities, setSecurities] = useState<Map<string, Security>>(new Map());
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [priceHistory, setPriceHistory] = useState<Map<string, OHLC[]>>(new Map());
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
+  const aggregators = useRef<Map<string, PriceAggregator>>(new Map());
+  const maxReconnectAttempts = 5;
 
   const updateSecurity = useCallback((event: MarketDataEvent) => {
     setSecurities((prev) => {
@@ -35,11 +41,30 @@ export function useMarketData(brokerUrl: string): UseMarketDataResult {
       updated.set(event.symbol, security);
       return updated;
     });
+
+    if (!aggregators.current.has(event.symbol)) {
+      aggregators.current.set(event.symbol, new PriceAggregator());
+    }
+
+    const aggregator = aggregators.current.get(event.symbol)!;
+    const ohlc = aggregator.addTick(event);
+
+    if (ohlc) {
+      setPriceHistory((prev) => {
+        const updated = new Map(prev);
+        updated.set(event.symbol, aggregator.getHistory());
+        return updated;
+      });
+    }
   }, []);
 
   useEffect(() => {
+    if (reconnectAttempts >= maxReconnectAttempts) {
+      return;
+    }
+
     const streamUrl = `${brokerUrl}/api/marketdata/stream`;
-    console.log('Connecting to SSE:', streamUrl);
+    console.log('Connecting to SSE:', streamUrl, 'attempt:', reconnectAttempts + 1);
 
     const eventSource = new EventSource(streamUrl);
 
@@ -48,6 +73,7 @@ export function useMarketData(brokerUrl: string): UseMarketDataResult {
       console.log('Connected to broker:', data.clientId);
       setIsConnected(true);
       setError(null);
+      setReconnectAttempts(0);
     });
 
     eventSource.addEventListener('marketdata', (e) => {
@@ -63,7 +89,20 @@ export function useMarketData(brokerUrl: string): UseMarketDataResult {
     eventSource.onerror = (e) => {
       console.error('SSE error:', e);
       setIsConnected(false);
-      setError('Connection lost. Reconnecting...');
+      
+      if (eventSource.readyState === EventSource.CLOSED) {
+        const nextAttempt = reconnectAttempts + 1;
+        
+        if (nextAttempt < maxReconnectAttempts) {
+          setError(`Connection lost. Reconnecting (attempt ${nextAttempt}/${maxReconnectAttempts})...`);
+          setReconnectAttempts(nextAttempt);
+        } else {
+          setError('Connection failed. Maximum reconnection attempts reached. Please refresh the page.');
+          setReconnectAttempts(nextAttempt);
+        }
+      } else {
+        setError('Connection error. Reconnecting...');
+      }
     };
 
     return () => {
@@ -71,7 +110,7 @@ export function useMarketData(brokerUrl: string): UseMarketDataResult {
       eventSource.close();
       setIsConnected(false);
     };
-  }, [brokerUrl, updateSecurity]);
+  }, [brokerUrl, updateSecurity, reconnectAttempts]);
 
-  return { securities, isConnected, error };
+  return { securities, isConnected, error, priceHistory };
 }
