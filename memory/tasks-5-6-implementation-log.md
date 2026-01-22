@@ -200,8 +200,8 @@ dotnet run --project src/AppHost
 
 ### 1. OpenTelemetry Package Compatibility
 **Issue:** .NET 10 OpenTelemetry packages incompatible with .NET 8 projects  
-**Resolution:** Removed OpenTelemetry instrumentation; can be added later with correct versions  
-**Impact:** Minimal - OpenTelemetry nice-to-have, not required for MVP  
+**Resolution:** Removed OpenTelemetry instrumentation packages  
+**Impact:** Minimal - OpenTelemetry nice-to-have, not required for MVP. Can be added later with correct versions.
 
 ### 2. Microsoft.AspNetCore.OpenApi Compatibility
 **Issue:** WithOpenApi() extension method from .NET 10 package caused build errors  
@@ -211,7 +211,19 @@ dotnet run --project src/AppHost
 ### 3. HttpClient Extension Methods
 **Issue:** AddHttpClient not available without Microsoft.Extensions.Http package  
 **Resolution:** Added Microsoft.Extensions.Http (10.0.2) package  
-**Impact:** None - standard package addition  
+**Impact:** None - standard package addition
+
+### 4. Code Review Findings - Addressed
+**Finding 1:** Unused OpenTelemetry packages  
+**Resolution:** Removed all unused OpenTelemetry packages from MarketIngestion.Api  
+
+**Finding 2:** Hardcoded initial price  
+**Resolution:** Made InitialPrice configurable via appsettings.json (default: 1000)  
+
+**Finding 3:** Potential negative prices in random walk  
+**Resolution:** Added validation: `newPrice = Math.Max(0.01m, newPrice);`  
+
+**Security Scan:** CodeQL scan completed with 0 alerts - no security vulnerabilities found  
 
 ---
 
