@@ -27,7 +27,7 @@ public class SseController : ControllerBase
         Response.Headers.Append("Cache-Control", "no-cache");
         Response.Headers.Append("Connection", "keep-alive");
 
-        var clientId = Guid.NewGuid().ToString("N")[..8];
+        var clientId = Guid.NewGuid().ToString("N");
         _logger.LogInformation("Client {ClientId} connected", clientId);
 
         try
@@ -38,7 +38,7 @@ public class SseController : ControllerBase
                 cancellationToken);
 
             var reader = _channel.Reader;
-            var heartbeatTimer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+            using var heartbeatTimer = new PeriodicTimer(TimeSpan.FromSeconds(15));
             var readTask = ReadChannelAsync(reader, clientId, cancellationToken);
             var heartbeatTask = SendHeartbeatsAsync(heartbeatTimer, cancellationToken);
 
