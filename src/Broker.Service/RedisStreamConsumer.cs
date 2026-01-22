@@ -10,6 +10,9 @@ public class RedisStreamConsumer : BackgroundService
     private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<RedisStreamConsumer> _logger;
     private readonly Channel<MarketDataEvent> _channel;
+    
+    // Thread-safe for single-writer scenario (this BackgroundService is the only writer)
+    // For multiple broker instances writing to shared cache, use ConcurrentDictionary
     private readonly Dictionary<string, Security> _cache = new();
 
     private const string StreamKey = "marketdata:stream";
@@ -80,7 +83,22 @@ public class RedisStreamConsumer : BackgroundService
     {
         try
         {
+            // Validate entry has expected structure
+            if (entry.Values.Length == 0)
+            {
+                _logger.LogWarning("Received empty message {MessageId}", entry.Id);
+                await db.StreamAcknowledgeAsync(StreamKey, ConsumerGroup, entry.Id);
+                return;
+            }
+
             var json = entry.Values[0].Value.ToString();
+            if (string.IsNullOrEmpty(json))
+            {
+                _logger.LogWarning("Received null/empty data in message {MessageId}", entry.Id);
+                await db.StreamAcknowledgeAsync(StreamKey, ConsumerGroup, entry.Id);
+                return;
+            }
+
             var marketData = JsonSerializer.Deserialize<MarketDataEvent>(json);
 
             if (marketData != null)
@@ -88,16 +106,23 @@ public class RedisStreamConsumer : BackgroundService
                 UpdateCache(marketData);
                 await _channel.Writer.WriteAsync(marketData, ct);
                 
-                // Acknowledge message
+                // Acknowledge message only after successful processing
                 await db.StreamAcknowledgeAsync(StreamKey, ConsumerGroup, entry.Id);
                 
                 _logger.LogDebug("Processed {Symbol} @ {Price}", 
                     marketData.Symbol, marketData.Price);
             }
+            else
+            {
+                _logger.LogWarning("Failed to deserialize message {MessageId}", entry.Id);
+                // Still acknowledge to prevent reprocessing of bad message
+                await db.StreamAcknowledgeAsync(StreamKey, ConsumerGroup, entry.Id);
+            }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to process message {MessageId}", entry.Id);
+            // Don't acknowledge on unexpected errors - message will be retried
         }
     }
 
