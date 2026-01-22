@@ -5,18 +5,18 @@ namespace MarketSimulator;
 
 public class ExchangeSimulator : BackgroundService
 {
-    private readonly HttpClient _httpClient;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<ExchangeSimulator> _logger;
     private readonly IConfiguration _configuration;
     private readonly Dictionary<string, decimal> _lastPrices = new();
     private readonly Random _random = new();
 
     public ExchangeSimulator(
-        HttpClient httpClient,
+        IHttpClientFactory httpClientFactory,
         ILogger<ExchangeSimulator> logger,
         IConfiguration configuration)
     {
-        _httpClient = httpClient;
+        _httpClientFactory = httpClientFactory;
         _logger = logger;
         _configuration = configuration;
     }
@@ -74,7 +74,8 @@ public class ExchangeSimulator : BackgroundService
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync("/api/marketdata", data, ct);
+            var httpClient = _httpClientFactory.CreateClient("IngestionApi");
+            var response = await httpClient.PostAsJsonAsync("/api/marketdata", data, ct);
             response.EnsureSuccessStatusCode();
             
             _logger.LogDebug("Sent market data for {Symbol} at price {Price}", 
