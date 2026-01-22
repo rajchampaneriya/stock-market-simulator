@@ -27,6 +27,7 @@ public class ExchangeSimulator : BackgroundService
             ?? new[] { "NIFTY50", "BANKNIFTY" };
         var tickInterval = _configuration.GetValue<int>("TickIntervalMs", 300);
         var volatility = _configuration.GetValue<double>("Volatility", 0.5);
+        var initialPrice = _configuration.GetValue<decimal>("InitialPrice", 1000m);
 
         _logger.LogInformation("Exchange Simulator starting with {SymbolCount} symbols, tick interval {TickInterval}ms", 
             symbols.Length, tickInterval);
@@ -34,7 +35,7 @@ public class ExchangeSimulator : BackgroundService
         // Initialize prices
         foreach (var symbol in symbols)
         {
-            _lastPrices[symbol] = 1000m;
+            _lastPrices[symbol] = initialPrice;
         }
 
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(tickInterval));
@@ -54,6 +55,9 @@ public class ExchangeSimulator : BackgroundService
         var lastPrice = _lastPrices[symbol];
         var change = (decimal)(_random.NextDouble() - 0.5) * 2 * (decimal)volatility;
         var newPrice = lastPrice + change;
+        
+        // Ensure price stays positive
+        newPrice = Math.Max(0.01m, newPrice);
         
         _lastPrices[symbol] = newPrice;
 
