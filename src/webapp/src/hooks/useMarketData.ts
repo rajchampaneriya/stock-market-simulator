@@ -14,7 +14,9 @@ export function useMarketData(brokerUrl: string): UseMarketDataResult {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [priceHistory, setPriceHistory] = useState<Map<string, OHLC[]>>(new Map());
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const aggregators = useRef<Map<string, PriceAggregator>>(new Map());
+  const maxReconnectAttempts = 5;
 
   const updateSecurity = useCallback((event: MarketDataEvent) => {
     setSecurities((prev) => {
@@ -57,8 +59,12 @@ export function useMarketData(brokerUrl: string): UseMarketDataResult {
   }, []);
 
   useEffect(() => {
+    if (reconnectAttempts >= maxReconnectAttempts) {
+      return;
+    }
+
     const streamUrl = `${brokerUrl}/api/marketdata/stream`;
-    console.log('Connecting to SSE:', streamUrl);
+    console.log('Connecting to SSE:', streamUrl, 'attempt:', reconnectAttempts + 1);
 
     const eventSource = new EventSource(streamUrl);
 
@@ -67,6 +73,7 @@ export function useMarketData(brokerUrl: string): UseMarketDataResult {
       console.log('Connected to broker:', data.clientId);
       setIsConnected(true);
       setError(null);
+      setReconnectAttempts(0);
     });
 
     eventSource.addEventListener('marketdata', (e) => {
@@ -82,7 +89,20 @@ export function useMarketData(brokerUrl: string): UseMarketDataResult {
     eventSource.onerror = (e) => {
       console.error('SSE error:', e);
       setIsConnected(false);
-      setError('Connection lost. Reconnecting...');
+      
+      if (eventSource.readyState === EventSource.CLOSED) {
+        const nextAttempt = reconnectAttempts + 1;
+        
+        if (nextAttempt < maxReconnectAttempts) {
+          setError(`Connection lost. Reconnecting (attempt ${nextAttempt}/${maxReconnectAttempts})...`);
+          setReconnectAttempts(nextAttempt);
+        } else {
+          setError('Connection failed. Maximum reconnection attempts reached. Please refresh the page.');
+          setReconnectAttempts(nextAttempt);
+        }
+      } else {
+        setError('Connection error. Reconnecting...');
+      }
     };
 
     return () => {
@@ -90,7 +110,7 @@ export function useMarketData(brokerUrl: string): UseMarketDataResult {
       eventSource.close();
       setIsConnected(false);
     };
-  }, [brokerUrl, updateSecurity]);
+  }, [brokerUrl, updateSecurity, reconnectAttempts]);
 
   return { securities, isConnected, error, priceHistory };
 }

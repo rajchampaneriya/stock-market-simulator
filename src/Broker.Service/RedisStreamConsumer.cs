@@ -31,21 +31,34 @@ public class RedisStreamConsumer : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var db = _redis.GetDatabase();
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await ConsumeMessagesAsync(stoppingToken);
+            }
+            catch (RedisConnectionException ex)
+            {
+                _logger.LogError(ex, "Redis connection lost, reconnecting in 5 seconds...");
+                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+            }
+            catch (RedisTimeoutException ex)
+            {
+                _logger.LogError(ex, "Redis timeout, retrying in 2 seconds...");
+                await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Fatal error in consumer, restarting in 10 seconds...");
+                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+            }
+        }
+    }
 
-        // Create consumer group if it doesn't exist
-        try
-        {
-            await db.StreamCreateConsumerGroupAsync(
-                StreamKey, 
-                ConsumerGroup, 
-                StreamPosition.NewMessages);
-            _logger.LogInformation("Created consumer group: {Group}", ConsumerGroup);
-        }
-        catch (RedisServerException ex) when (ex.Message.Contains("BUSYGROUP"))
-        {
-            _logger.LogDebug("Consumer group already exists");
-        }
+    private async Task ConsumeMessagesAsync(CancellationToken stoppingToken)
+    {
+        var db = _redis.GetDatabase();
+        await EnsureConsumerGroupExists(db);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -60,7 +73,7 @@ public class RedisStreamConsumer : BackgroundService
 
                 foreach (var entry in result)
                 {
-                    await ProcessMessage(db, entry, stoppingToken);
+                    await ProcessMessageSafely(db, entry, stoppingToken);
                 }
 
                 if (result.Length == 0)
@@ -76,53 +89,78 @@ public class RedisStreamConsumer : BackgroundService
         }
     }
 
+    private async Task EnsureConsumerGroupExists(IDatabase db)
+    {
+        try
+        {
+            await db.StreamCreateConsumerGroupAsync(
+                StreamKey, 
+                ConsumerGroup, 
+                StreamPosition.NewMessages);
+            _logger.LogInformation("Created consumer group: {Group}", ConsumerGroup);
+        }
+        catch (RedisServerException ex) when (ex.Message.Contains("BUSYGROUP"))
+        {
+            _logger.LogDebug("Consumer group already exists");
+        }
+    }
+
+    private async Task ProcessMessageSafely(
+        IDatabase db,
+        StreamEntry entry,
+        CancellationToken ct)
+    {
+        try
+        {
+            await ProcessMessage(db, entry, ct);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Invalid JSON in message {MessageId}, acknowledging to prevent reprocessing", entry.Id);
+            await db.StreamAcknowledgeAsync(StreamKey, ConsumerGroup, entry.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing message {MessageId}, will retry", entry.Id);
+        }
+    }
+
     private async Task ProcessMessage(
         IDatabase db, 
         StreamEntry entry, 
         CancellationToken ct)
     {
-        try
+        if (entry.Values.Length == 0)
         {
-            // Validate entry has expected structure
-            if (entry.Values.Length == 0)
-            {
-                _logger.LogWarning("Received empty message {MessageId}", entry.Id);
-                await db.StreamAcknowledgeAsync(StreamKey, ConsumerGroup, entry.Id);
-                return;
-            }
-
-            var json = entry.Values[0].Value.ToString();
-            if (string.IsNullOrEmpty(json))
-            {
-                _logger.LogWarning("Received null/empty data in message {MessageId}", entry.Id);
-                await db.StreamAcknowledgeAsync(StreamKey, ConsumerGroup, entry.Id);
-                return;
-            }
-
-            var marketData = JsonSerializer.Deserialize<MarketDataEvent>(json);
-
-            if (marketData != null)
-            {
-                UpdateCache(marketData);
-                await _channel.Writer.WriteAsync(marketData, ct);
-                
-                // Acknowledge message only after successful processing
-                await db.StreamAcknowledgeAsync(StreamKey, ConsumerGroup, entry.Id);
-                
-                _logger.LogDebug("Processed {Symbol} @ {Price}", 
-                    marketData.Symbol, marketData.Price);
-            }
-            else
-            {
-                _logger.LogWarning("Failed to deserialize message {MessageId}", entry.Id);
-                // Still acknowledge to prevent reprocessing of bad message
-                await db.StreamAcknowledgeAsync(StreamKey, ConsumerGroup, entry.Id);
-            }
+            _logger.LogWarning("Received empty message {MessageId}", entry.Id);
+            await db.StreamAcknowledgeAsync(StreamKey, ConsumerGroup, entry.Id);
+            return;
         }
-        catch (Exception ex)
+
+        var json = entry.Values[0].Value.ToString();
+        if (string.IsNullOrEmpty(json))
         {
-            _logger.LogError(ex, "Failed to process message {MessageId}", entry.Id);
-            // Don't acknowledge on unexpected errors - message will be retried
+            _logger.LogWarning("Received null/empty data in message {MessageId}", entry.Id);
+            await db.StreamAcknowledgeAsync(StreamKey, ConsumerGroup, entry.Id);
+            return;
+        }
+
+        var marketData = JsonSerializer.Deserialize<MarketDataEvent>(json);
+
+        if (marketData != null)
+        {
+            UpdateCache(marketData);
+            await _channel.Writer.WriteAsync(marketData, ct);
+            
+            await db.StreamAcknowledgeAsync(StreamKey, ConsumerGroup, entry.Id);
+            
+            _logger.LogDebug("Processed {Symbol} @ {Price}", 
+                marketData.Symbol, marketData.Price);
+        }
+        else
+        {
+            _logger.LogWarning("Failed to deserialize message {MessageId}", entry.Id);
+            await db.StreamAcknowledgeAsync(StreamKey, ConsumerGroup, entry.Id);
         }
     }
 
