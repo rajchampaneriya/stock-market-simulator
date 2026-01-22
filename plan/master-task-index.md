@@ -76,8 +76,8 @@ This is the central navigation hub for all implementation tasks. Tasks are organ
 
 | # | Task | Effort | Status |
 |---|------|--------|--------|
-| 13 | [Add Candlestick Charts with d3.js](13-add-candlestick-charts.md) | 4-5 hours | ⬜ Not Started |
-| 14 | [Improve Error Handling](14-improve-error-handling.md) | 3-4 hours | ⬜ Not Started |
+| 13 | [Add Candlestick Charts with d3.js](13-add-candlestick-charts.md) | 4-5 hours | ✅ Complete |
+| 14 | [Improve Error Handling](14-improve-error-handling.md) | 3-4 hours | ✅ Complete |
 | 15 | [Performance Testing and Optimization](15-performance-testing.md) | 4-6 hours | ⬜ Not Started |
 | 16 | [Documentation and Deployment Guide](16-documentation-deployment.md) | 4-5 hours | ⬜ Not Started |
 
@@ -95,7 +95,7 @@ This is the central navigation hub for all implementation tasks. Tasks are organ
 - [ ] Phase 5: Polish & Harden (4 tasks)
 
 ### Overall Progress
-**12 / 16 tasks completed (75%)**
+**14 / 16 tasks completed (87.5%)**
 
 ---
 
