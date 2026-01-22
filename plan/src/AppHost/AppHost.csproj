@@ -12,4 +12,10 @@
     <PackageReference Include="Aspire.Hosting.Redis" Version="13.1.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\MarketIngestion.Api\MarketIngestion.Api.csproj" />
+    <ProjectReference Include="..\Broker.Service\Broker.Service.csproj" />
+    <ProjectReference Include="..\MarketSimulator\MarketSimulator.csproj" />
+  </ItemGroup>
+
 </Project>
