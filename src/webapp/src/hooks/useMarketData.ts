@@ -1,16 +1,20 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { MarketDataEvent, Security } from '../types';
+import { PriceAggregator, type OHLC } from '../utils/priceAggregator';
 
 interface UseMarketDataResult {
   securities: Map<string, Security>;
   isConnected: boolean;
   error: string | null;
+  priceHistory: Map<string, OHLC[]>;
 }
 
 export function useMarketData(brokerUrl: string): UseMarketDataResult {
   const [securities, setSecurities] = useState<Map<string, Security>>(new Map());
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [priceHistory, setPriceHistory] = useState<Map<string, OHLC[]>>(new Map());
+  const aggregators = useRef<Map<string, PriceAggregator>>(new Map());
 
   const updateSecurity = useCallback((event: MarketDataEvent) => {
     setSecurities((prev) => {
@@ -35,6 +39,21 @@ export function useMarketData(brokerUrl: string): UseMarketDataResult {
       updated.set(event.symbol, security);
       return updated;
     });
+
+    if (!aggregators.current.has(event.symbol)) {
+      aggregators.current.set(event.symbol, new PriceAggregator());
+    }
+
+    const aggregator = aggregators.current.get(event.symbol)!;
+    const ohlc = aggregator.addTick(event);
+
+    if (ohlc) {
+      setPriceHistory((prev) => {
+        const updated = new Map(prev);
+        updated.set(event.symbol, aggregator.getHistory());
+        return updated;
+      });
+    }
   }, []);
 
   useEffect(() => {
@@ -73,5 +92,5 @@ export function useMarketData(brokerUrl: string): UseMarketDataResult {
     };
   }, [brokerUrl, updateSecurity]);
 
-  return { securities, isConnected, error };
+  return { securities, isConnected, error, priceHistory };
 }

@@ -12,7 +12,7 @@ import './App.css';
 
 function App() {
   const brokerUrl = import.meta.env.VITE_BROKER_URL || 'http://localhost:5002';
-  const { securities, isConnected, error } = useMarketData(brokerUrl);
+  const { securities, isConnected, error, priceHistory } = useMarketData(brokerUrl);
 
   const securitiesArray = Array.from(securities.values());
 
@@ -45,7 +45,10 @@ function App() {
           <Grid container spacing={3} sx={{ mt: 2 }}>
             {securitiesArray.map((security) => (
               <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={security.symbol}>
-                <StockCard security={security} />
+                <StockCard 
+                  security={security} 
+                  priceHistory={priceHistory.get(security.symbol)}
+                />
               </Grid>
             ))}
           </Grid>
