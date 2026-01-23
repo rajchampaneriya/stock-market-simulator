@@ -67,11 +67,21 @@ src/
 
 ## Documentation
 
-- [/memory/dotnet10-status.md](/memory/dotnet10-status.md) - Current project status
-- [/memory/dotnet10-upgrade-summary.md](/memory/dotnet10-upgrade-summary.md) - .NET 10 upgrade details
-- [/memory/aspire-orchestration-resolution.md](/memory/aspire-orchestration-resolution.md) - Orchestration setup
-- [/docs/requirements/prd.md](/docs/requirements/prd.md) - Product requirements
-- [/docs/plan/draft-technical-approach.md](/docs/plan/draft-technical-approach.md) - Technical design
+### Architecture Documentation
+- [Architecture Overview](/docs/architecture/README.md) - **Start here** for comprehensive documentation
+- [High-Level Design](/docs/architecture/HIGH_LEVEL_DESIGN.md) - System overview with diagrams
+- [Low-Level Design](/docs/architecture/LOW_LEVEL_DESIGN.md) - Detailed component specifications
+- [C4 Diagrams](/docs/architecture/C4_DIAGRAMS.md) - Visual architecture diagrams in Mermaid format
+- [Architecture Decision Records](/docs/architecture/ADR/README.md) - Key design decisions
+
+### Requirements & Planning
+- [Product Requirements](/docs/requirements/prd.md) - Product requirements document
+- [Technical Approach](/docs/plan/draft-technical-approach.md) - Implementation guide
+
+### Development Notes
+- [Project Status](/memory/dotnet10-status.md) - Current project status
+- [.NET 10 Upgrade Summary](/memory/dotnet10-upgrade-summary.md) - .NET 10 upgrade details
+- [Orchestration Setup](/memory/aspire-orchestration-resolution.md) - Aspire orchestration resolution
 
 ## Development Status
 
