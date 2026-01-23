@@ -26,7 +26,8 @@ var brokerService = builder.AddProject<Projects.Broker_Service>("broker-service"
 
 // Frontend - React app
 var webfrontend = builder.AddViteApp("webfrontend", "../frontend")
-    .WithReference(brokerService)
+    .WithExternalHttpEndpoints()
+    .WithEnvironment("VITE_BROKER_URL", brokerService.GetEndpoint("http"))
     .WaitFor(brokerService);
 
 builder.Build().Run();

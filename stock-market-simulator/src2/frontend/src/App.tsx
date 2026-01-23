@@ -12,6 +12,7 @@ import './App.css';
 
 function App() {
   const brokerUrl = import.meta.env.VITE_BROKER_URL || 'http://localhost:5002';
+  console.log('Connecting to broker at:', brokerUrl);
   const { securities, isConnected, error, priceHistory } = useMarketData(brokerUrl);
 
   const securitiesArray = Array.from(securities.values());
