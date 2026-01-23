@@ -12,6 +12,7 @@ Welcome to the comprehensive documentation for the Stock Market Simulator projec
 | [Low-Level Design](./LOW_LEVEL_DESIGN.md) | Detailed component specifications | Developers |
 | [C4 Diagrams](./C4_DIAGRAMS.md) | Visual architecture diagrams | All stakeholders |
 | [ADR Index](./ADR/README.md) | Architecture decision records | Technical leads |
+| [Gap Analysis Report](./GAP_ANALYSIS_REPORT.md) | Documentation vs implementation review | Architects, Tech Leads |
 
 ---
 
