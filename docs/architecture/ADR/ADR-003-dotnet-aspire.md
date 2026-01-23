@@ -98,7 +98,7 @@ flowchart TD
 - **Aspire Dashboard issues**: DCP limitations with .NET 10 preview
 - **Production limitations**: Not designed for production deployment
 - **Learning curve**: New concept for developers unfamiliar with Aspire
-- **Version compatibility**: Aspire 9.5.2 requires specific .NET versions
+- **Version compatibility**: Aspire 13.1.0 requires specific .NET versions
 
 ### Mitigations
 

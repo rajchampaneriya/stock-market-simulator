@@ -10,12 +10,12 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Redis connection
-var redisConnection = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
-builder.Services.AddSingleton<IConnectionMultiplexer>(
-    ConnectionMultiplexer.Connect(redisConnection));
+// Redis connection using Aspire service discovery
+// The "cache" name matches the resource name in AppHost
+builder.AddRedisClient("cache");
 
 // Health checks
+var redisConnection = builder.Configuration.GetConnectionString("cache") ?? "localhost:6379";
 builder.Services.AddHealthChecks()
     .AddRedis(redisConnection);
 

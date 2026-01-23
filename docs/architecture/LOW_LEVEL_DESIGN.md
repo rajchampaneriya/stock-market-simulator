@@ -556,6 +556,95 @@ data: {"symbol":"NIFTY50","price":1000.50,"volume":5000,"timestamp":"2026-01-22T
 
 ```
 
+### 8.4 Configuration Reference
+
+#### MarketSimulator Configuration
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `IngestionApiUrl` | string | http://localhost:5001 | URL of the Market Ingestion API |
+| `Symbols` | string[] | ["NIFTY50", "BANKNIFTY", "RELIANCE", "TCS"] | List of stock symbols to simulate |
+| `TickIntervalMs` | int | 300 | Interval between price updates in milliseconds |
+| `Volatility` | decimal | 0.5 | Price volatility factor (0.0 - 1.0) |
+| `InitialPrice` | decimal | 1000 | Starting price for all symbols |
+
+**Example appsettings.json**:
+```json
+{
+  "IngestionApiUrl": "http://localhost:5001",
+  "Symbols": ["NIFTY50", "BANKNIFTY", "RELIANCE", "TCS"],
+  "TickIntervalMs": 300,
+  "Volatility": 0.5,
+  "InitialPrice": 1000
+}
+```
+
+#### MarketIngestion.Api Configuration
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `ConnectionStrings:cache` | string | localhost:6379 | Redis connection string (via Aspire service discovery) |
+
+**Example appsettings.json**:
+```json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information"
+    }
+  }
+}
+```
+
+#### Broker.Service Configuration
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `ConnectionStrings:cache` | string | localhost:6379 | Redis connection string (via Aspire service discovery) |
+| `Cors:AllowedOrigins` | string[] | ["http://localhost:5000", "http://localhost:5173"] | Allowed CORS origins |
+| `Redis:ConsumerNamePrefix` | string | broker | Prefix for Redis consumer name generation |
+| `Channel:Capacity` | int | 1000 | Bounded channel capacity for backpressure management |
+
+**Example appsettings.json**:
+```json
+{
+  "Cors": {
+    "AllowedOrigins": [
+      "http://localhost:5000",
+      "http://localhost:5173"
+    ]
+  },
+  "Redis": {
+    "ConsumerNamePrefix": "broker"
+  },
+  "Channel": {
+    "Capacity": 1000
+  }
+}
+```
+
+**Production appsettings.Production.json**:
+```json
+{
+  "Cors": {
+    "AllowedOrigins": [
+      "https://yourdomain.com"
+    ]
+  }
+}
+```
+
+#### Frontend Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VITE_BROKER_URL` | (set by Aspire) | URL of the Broker Service SSE endpoint |
+
+**Example .env**:
+```bash
+VITE_BROKER_URL=http://localhost:5002
+```
+
 ---
 
 ## 9. Performance Considerations

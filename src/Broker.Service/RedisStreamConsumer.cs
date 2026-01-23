@@ -10,6 +10,7 @@ public class RedisStreamConsumer : BackgroundService
     private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<RedisStreamConsumer> _logger;
     private readonly Channel<MarketDataEvent> _channel;
+    private readonly string _consumerName;
     
     // Thread-safe for single-writer scenario (this BackgroundService is the only writer)
     // For multiple broker instances writing to shared cache, use ConcurrentDictionary
@@ -17,16 +18,25 @@ public class RedisStreamConsumer : BackgroundService
 
     private const string StreamKey = "marketdata:stream";
     private const string ConsumerGroup = "brokers";
-    private const string ConsumerName = "broker-1";
 
     public RedisStreamConsumer(
         IConnectionMultiplexer redis,
         ILogger<RedisStreamConsumer> logger,
-        Channel<MarketDataEvent> channel)
+        Channel<MarketDataEvent> channel,
+        IConfiguration configuration)
     {
         _redis = redis;
         _logger = logger;
         _channel = channel;
+        
+        // Generate unique consumer name for horizontal scaling
+        // Uses configured prefix or default "broker", plus hostname and a GUID
+        var consumerPrefix = configuration["Redis:ConsumerNamePrefix"] ?? "broker";
+        var hostname = Environment.MachineName;
+        var uniqueId = Guid.NewGuid().ToString("N")[..8]; // Short GUID
+        _consumerName = $"{consumerPrefix}-{hostname}-{uniqueId}";
+        
+        _logger.LogInformation("Consumer initialized with name: {ConsumerName}", _consumerName);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -67,7 +77,7 @@ public class RedisStreamConsumer : BackgroundService
                 var result = await db.StreamReadGroupAsync(
                     StreamKey,
                     ConsumerGroup,
-                    ConsumerName,
+                    _consumerName,
                     ">",
                     count: 10);
 

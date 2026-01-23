@@ -5,19 +5,25 @@ using Shared.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Redis
-var redisConnection = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379";
-builder.Services.AddSingleton<IConnectionMultiplexer>(
-    ConnectionMultiplexer.Connect(redisConnection));
+// Redis connection using Aspire service discovery
+// The "cache" name matches the resource name in AppHost
+builder.AddRedisClient("cache");
 
-// Channel for broadcasting
-builder.Services.AddSingleton(Channel.CreateUnbounded<MarketDataEvent>(
-    new UnboundedChannelOptions { SingleReader = false, SingleWriter = true }));
+// Channel for broadcasting with bounded capacity to prevent memory issues
+var channelCapacity = builder.Configuration.GetValue<int>("Channel:Capacity", 1000);
+builder.Services.AddSingleton(Channel.CreateBounded<MarketDataEvent>(
+    new BoundedChannelOptions(channelCapacity) 
+    { 
+        SingleReader = false, 
+        SingleWriter = true,
+        FullMode = BoundedChannelFullMode.DropOldest // Drop oldest messages on backpressure
+    }));
 
 // Background consumer
 builder.Services.AddHostedService<RedisStreamConsumer>();
 
 // Health checks
+var redisConnection = builder.Configuration.GetConnectionString("cache") ?? "localhost:6379";
 builder.Services.AddHealthChecks()
     .AddRedis(redisConnection);
 
@@ -26,10 +32,24 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.SetIsOriginAllowed(_ => true) // Allow any origin in development
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() 
+            ?? new[] { "http://localhost:5000", "http://localhost:5173" };
+        
+        if (builder.Environment.IsDevelopment())
+        {
+            policy.WithOrigins(allowedOrigins)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+        }
+        else
+        {
+            // In production, use strict origin configuration
+            policy.WithOrigins(allowedOrigins)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+        }
     });
 });
 

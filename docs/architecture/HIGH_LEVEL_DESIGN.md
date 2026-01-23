@@ -165,17 +165,17 @@ sequenceDiagram
 | .NET | 10 | Runtime platform |
 | ASP.NET Core | 10 | Web API framework |
 | StackExchange.Redis | Latest | Redis client library |
-| Aspire | 9.5.2 | Cloud-native orchestration |
+| Aspire | 13.1.0 | Cloud-native orchestration |
 
 ### 5.2 Frontend Technologies
 
 | Technology | Version | Purpose |
 |------------|---------|---------|
-| React | 18+ | UI framework |
-| TypeScript | 5+ | Type safety |
-| Material UI | 5+ | Component library |
+| React | 19+ | UI framework |
+| TypeScript | 5.9+ | Type safety |
+| Material UI | 7+ | Component library |
 | D3.js | 7+ | Candlestick charts |
-| Vite | Latest | Build tool |
+| Vite | 7+ | Build tool |
 
 ### 5.3 Infrastructure
 
@@ -252,7 +252,7 @@ flowchart TB
 |---------|-----|---------|
 | Market Ingestion API | http://localhost:5001 | Receive market data |
 | Broker Service | http://localhost:5002 | SSE streaming |
-| Web Application | http://localhost:5000 | User interface |
+| Web Frontend | http://localhost:5173 | User interface (Vite dev server) |
 | Redis | localhost:6379 | Message broker |
 
 ---

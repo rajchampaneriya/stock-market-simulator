@@ -30,11 +30,17 @@ dotnet run --urls "http://localhost:5002"
 cd src/MarketSimulator
 export PATH="$HOME/.dotnet:$PATH"
 dotnet run
+
+# Terminal 4 - Web Frontend (optional)
+cd src/frontend
+npm install
+npm run dev
 ```
 
 ### Service Endpoints
 - **Market Ingestion API:** http://localhost:5001
 - **Broker Service (SSE):** http://localhost:5002
+- **Web Frontend:** http://localhost:5173 (Vite dev server)
 - **Redis:** localhost:6379
 
 ## Architecture
@@ -45,14 +51,23 @@ The system simulates a stock market data pipeline:
 2. **MarketIngestion.Api** - Receives market data via HTTP and publishes to Redis
 3. **Redis** - Message broker for real-time data distribution
 4. **Broker.Service** - Consumes from Redis and streams data to clients via Server-Sent Events
+5. **Web Frontend** - React/TypeScript UI displaying real-time market data with candlestick charts
 
 ## Technology Stack
 
+### Backend
 - **.NET 10** - Latest framework with performance improvements
-- **Aspire 9.5.2** - Cloud-native orchestration (structure preserved)
+- **Aspire 13.1.0** - Cloud-native orchestration
 - **Redis** - In-memory data store and message broker
 - **StackExchange.Redis** - Redis client library
 - **Server-Sent Events** - Real-time streaming to web clients
+
+### Frontend
+- **React 19** - UI framework
+- **TypeScript 5.9** - Type safety
+- **Material UI 7** - Component library
+- **D3.js 7** - Candlestick charts
+- **Vite 7** - Build tool
 
 ## Project Structure
 
@@ -62,7 +77,8 @@ src/
 ├── Shared.Contracts/         # Shared data models
 ├── MarketSimulator/          # Market data generator
 ├── MarketIngestion.Api/      # Data ingestion endpoint
-└── Broker.Service/           # SSE streaming service
+├── Broker.Service/           # SSE streaming service
+└── frontend/                 # React/TypeScript web UI
 ```
 
 ## Documentation
@@ -86,7 +102,7 @@ src/
 ## Development Status
 
 ✅ **Complete** - All services build and run successfully  
-⚠️ **Note:** Aspire Dashboard unavailable due to .NET 10/Aspire 9.5.2 DCP limitations. Services run independently via helper script.
+⚠️ **Note:** Aspire Dashboard unavailable due to .NET 10/Aspire 13.1.0 DCP limitations. Services run independently via helper script.
 
 ## Building
 
@@ -104,14 +120,6 @@ docker run -d --name test-redis -p 6379:6379 redis:latest
 ```
 
 Run individual services with `dotnet run` in their respective directories.
-
-## Future Enhancements
-
-- Docker Compose orchestration
-- React/TypeScript frontend with real-time charts
-- Candlestick chart visualization
-- WebSocket support
-- Performance testing and optimization
 
 ## License
 
