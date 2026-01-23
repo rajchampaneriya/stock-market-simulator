@@ -10,6 +10,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\stock-market-simulator.Server\stock-market-simulator.Server.csproj" />
+    <ProjectReference Include="..\MarketSimulator\MarketSimulator.csproj" />
+    <ProjectReference Include="..\MarketIngestion.Api\MarketIngestion.Api.csproj" />
+    <ProjectReference Include="..\Broker.Service\Broker.Service.csproj" />
   </ItemGroup>
 
   <ItemGroup>
