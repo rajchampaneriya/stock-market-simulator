@@ -58,9 +58,9 @@ flowchart TD
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
-| UI Framework | React 18+ | Component model |
+| UI Framework | React 19+ | Component model |
 | Type Safety | TypeScript 5+ | Compile-time checks |
-| Components | Material UI 5+ | Professional UI |
+| Components | Material UI 7+ | Professional UI |
 | Charts | D3.js 7+ | Candlestick visualization |
 | Build Tool | Vite | Fast development builds |
 | State | React Hooks | Local state management |

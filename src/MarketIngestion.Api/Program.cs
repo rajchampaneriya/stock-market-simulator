@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using Shared.Contracts;
 using StackExchange.Redis;
 using System.Text.Json;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +20,22 @@ builder.AddRedisClient("cache");
 var redisConnection = builder.Configuration.GetConnectionString("cache") ?? "localhost:6379";
 builder.Services.AddHealthChecks()
     .AddRedis(redisConnection);
+
+// Configure OpenTelemetry tracing
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource
+        .AddService("MarketIngestion.Api",
+            serviceVersion: "1.0.0",
+            serviceInstanceId: Environment.MachineName))
+    .WithTracing(tracing => tracing
+        .AddAspNetCoreInstrumentation(options =>
+        {
+            options.RecordException = true;
+        })
+        .AddHttpClientInstrumentation()
+        .AddRedisInstrumentation()
+        .AddConsoleExporter()
+        .AddOtlpExporter());
 
 var app = builder.Build();
 

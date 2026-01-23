@@ -1,4 +1,6 @@
 using MarketSimulator;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -12,6 +14,20 @@ builder.Services.AddHttpClient("IngestionApi", client =>
 });
 
 builder.Services.AddHostedService<ExchangeSimulator>();
+
+// Configure OpenTelemetry tracing
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource
+        .AddService("MarketSimulator",
+            serviceVersion: "1.0.0",
+            serviceInstanceId: Environment.MachineName))
+    .WithTracing(tracing => tracing
+        .AddHttpClientInstrumentation(options =>
+        {
+            options.RecordException = true;
+        })
+        .AddConsoleExporter()
+        .AddOtlpExporter());
 
 var host = builder.Build();
 await host.RunAsync();
