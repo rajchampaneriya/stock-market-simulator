@@ -7,9 +7,14 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: process.env.services__broker_service__http__0 || 'http://localhost:5002',
+        // Aspire sets services__broker_service__https__0 or services__broker_service__http__0
+        // Note: hyphens in service names become underscores in env vars
+        target: process.env['services__broker-service__https__0'] || 
+                process.env['services__broker-service__http__0'] || 
+                'https://localhost:50723', // Current broker service port
         changeOrigin: true,
-        secure: false,
+        secure: false, // Allow self-signed certificates in development
+        rewrite: (path) => path, // Keep /api prefix
       }
     }
   }

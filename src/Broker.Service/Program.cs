@@ -34,12 +34,10 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() 
-            ?? new[] { "http://localhost:5000", "http://localhost:5173" };
-        
         if (builder.Environment.IsDevelopment())
         {
-            policy.WithOrigins(allowedOrigins)
+            // In development, allow all origins for Aspire-generated URLs
+            policy.SetIsOriginAllowed(_ => true)
                   .AllowAnyHeader()
                   .AllowAnyMethod()
                   .AllowCredentials();
@@ -47,6 +45,9 @@ builder.Services.AddCors(options =>
         else
         {
             // In production, use strict origin configuration
+            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() 
+                ?? new[] { "http://localhost:5000", "http://localhost:5173" };
+            
             policy.WithOrigins(allowedOrigins)
                   .AllowAnyHeader()
                   .AllowAnyMethod()
