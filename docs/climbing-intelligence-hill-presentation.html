@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Climbing the Intelligence Hill</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-light: #F7F7F5;
+            --text-charcoal: #1F2933;
+            --accent-blue: #1F4ED8;
+            --subtle-grey: #D1D5DB;
+            --highlight-gold: #C9A14A;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-charcoal);
+            line-height: 1.6;
+        }
+
+        .carousel-container {
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .slide {
+            width: 100%;
+            max-width: 1080px;
+            height: 1080px;
+            background-color: var(--bg-light);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 80px;
+            margin-bottom: 40px;
+            border: 1px solid var(--subtle-grey);
+            position: relative;
+        }
+
+        .slide-number {
+            position: absolute;
+            top: 30px;
+            right: 30px;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            color: var(--subtle-grey);
+        }
+
+        h1, h2, h3 {
+            font-family: 'Playfair Display', serif;
+            font-weight: 600;
+            color: var(--text-charcoal);
+        }
+
+        .title-main {
+            font-size: 64px;
+            margin-bottom: 30px;
+            line-height: 1.2;
+        }
+
+        .title-underline {
+            display: inline-block;
+            border-bottom: 4px solid var(--highlight-gold);
+            padding-bottom: 8px;
+        }
+
+        .subtitle {
+            font-family: 'Inter', sans-serif;
+            font-size: 26px;
+            font-weight: 400;
+            color: var(--text-charcoal);
+            opacity: 0.85;
+            max-width: 700px;
+        }
+
+        .body-text {
+            font-family: 'Inter', sans-serif;
+            font-size: 36px;
+            line-height: 1.8;
+            max-width: 800px;
+        }
+
+        .body-text-large {
+            font-size: 42px;
+            line-height: 1.7;
+        }
+
+        .accent-text {
+            color: var(--accent-blue);
+        }
+
+        .bold-text {
+            font-weight: 600;
+        }
+
+        .gold-text {
+            color: var(--highlight-gold);
+        }
+
+        .divider {
+            width: 200px;
+            height: 1px;
+            background-color: var(--subtle-grey);
+            margin: 40px 0;
+        }
+
+        .gold-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: var(--highlight-gold);
+            border-radius: 50%;
+            margin-left: 12px;
+            vertical-align: middle;
+        }
+
+        .slide-title {
+            font-size: 48px;
+            margin-bottom: 50px;
+        }
+
+        .bullet-list {
+            text-align: left;
+            font-family: 'Inter', sans-serif;
+            font-size: 32px;
+            line-height: 2.2;
+            list-style: none;
+            margin: 30px 0;
+        }
+
+        .bullet-list li::before {
+            content: "•";
+            color: var(--accent-blue);
+            font-weight: bold;
+            display: inline-block;
+            width: 30px;
+            margin-left: -30px;
+        }
+
+        .bullet-list li {
+            padding-left: 30px;
+        }
+
+        .hill-icon {
+            width: 60px;
+            height: 40px;
+            margin-bottom: 30px;
+            opacity: 0.6;
+        }
+
+        .hill-icon svg {
+            fill: var(--subtle-grey);
+        }
+
+        .footer-text {
+            font-family: 'Inter', sans-serif;
+            font-size: 18px;
+            color: var(--subtle-grey);
+            position: absolute;
+            bottom: 40px;
+        }
+
+        .link-text {
+            font-family: 'Inter', sans-serif;
+            font-size: 24px;
+            color: var(--accent-blue);
+            margin: 20px 0;
+            overflow-wrap: break-word;
+        }
+
+        .tagline {
+            font-family: 'Playfair Display', serif;
+            font-size: 38px;
+            font-weight: 600;
+            margin-top: 40px;
+        }
+
+        .emphasis-block {
+            margin-top: 50px;
+            padding-top: 30px;
+            border-top: 1px solid var(--subtle-grey);
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 1100px) {
+            .slide {
+                height: auto;
+                min-height: 100vw;
+                padding: 60px 40px;
+            }
+
+            .title-main {
+                font-size: 48px;
+            }
+
+            .subtitle {
+                font-size: 22px;
+            }
+
+            .body-text {
+                font-size: 28px;
+            }
+
+            .body-text-large {
+                font-size: 32px;
+            }
+
+            .slide-title {
+                font-size: 38px;
+            }
+
+            .bullet-list {
+                font-size: 26px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .slide {
+                padding: 40px 30px;
+            }
+
+            .title-main {
+                font-size: 36px;
+            }
+
+            .subtitle {
+                font-size: 18px;
+            }
+
+            .body-text {
+                font-size: 22px;
+            }
+
+            .body-text-large {
+                font-size: 26px;
+            }
+
+            .slide-title {
+                font-size: 30px;
+            }
+
+            .bullet-list {
+                font-size: 20px;
+            }
+
+            .tagline {
+                font-size: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="carousel-container">
+        <!-- Slide 1 — Cover -->
+        <div class="slide" id="slide-1">
+            <span class="slide-number">1/9</span>
+            <h1 class="title-main">
+                Climbing the <span class="title-underline">Intelligence Hill</span>
+            </h1>
+            <p class="subtitle">
+                Why AI doesn't replace thinking — it elevates it.
+            </p>
+        </div>
+
+        <!-- Slide 2 — The Idea -->
+        <div class="slide" id="slide-2">
+            <span class="slide-number">2/9</span>
+            <p class="body-text body-text-large">
+                Most people use AI to move faster.
+            </p>
+            <br><br>
+            <p class="body-text body-text-large">
+                Very few use it to <span class="accent-text">think higher</span>.
+            </p>
+        </div>
+
+        <!-- Slide 3 — The Shift -->
+        <div class="slide" id="slide-3">
+            <span class="slide-number">3/9</span>
+            <p class="body-text body-text-large">
+                Speed improves output.
+            </p>
+            <div class="divider"></div>
+            <p class="body-text body-text-large">
+                Altitude improves judgment.
+            </p>
+        </div>
+
+        <!-- Slide 4 — The Metaphor -->
+        <div class="slide" id="slide-4">
+            <span class="slide-number">4/9</span>
+            <p class="body-text">
+                AI is not a shortcut.
+            </p>
+            <br>
+            <p class="body-text">
+                It is a <span class="bold-text">lever</span>.<span class="gold-dot"></span>
+            </p>
+            <br>
+            <p class="body-text">
+                And every lever works<br>
+                only when the mind is trained.
+            </p>
+        </div>
+
+        <!-- Slide 5 — The Intelligence Hill -->
+        <div class="slide" id="slide-5">
+            <span class="slide-number">5/9</span>
+            <!-- Subtle triangle/staircase icon -->
+            <div class="hill-icon">
+                <svg viewBox="0 0 60 40" xmlns="http://www.w3.org/2000/svg">
+                    <polygon points="30,0 60,40 0,40" fill="#D1D5DB"/>
+                </svg>
+            </div>
+            <h2 class="slide-title">The Intelligence Hill</h2>
+            <ul class="bullet-list">
+                <li>Execution</li>
+                <li>Reasoning</li>
+                <li>Insight</li>
+            </ul>
+            <br>
+            <p class="body-text">
+                AI helps you climb.<br>
+                <span class="accent-text">You choose the direction.</span>
+            </p>
+        </div>
+
+        <!-- Slide 6 — The Mistake -->
+        <div class="slide" id="slide-6">
+            <span class="slide-number">6/9</span>
+            <p class="body-text body-text-large" style="line-height: 2.2;">
+                Most people ask AI for answers.
+            </p>
+            <br><br>
+            <p class="body-text body-text-large" style="line-height: 2.2;">
+                The effective ones<br>
+                <span class="accent-text">ask better questions</span>.
+            </p>
+        </div>
+
+        <!-- Slide 7 — The Advantage -->
+        <div class="slide" id="slide-7">
+            <span class="slide-number">7/9</span>
+            <p class="body-text">
+                When used correctly, AI helps you:
+            </p>
+            <ul class="bullet-list">
+                <li>See patterns earlier</li>
+                <li>Think more clearly</li>
+                <li>Decide with confidence</li>
+                <li>Learn faster than experience alone</li>
+            </ul>
+            <div class="emphasis-block">
+                <p class="body-text">
+                    This is not automation.<br>
+                    <span class="accent-text bold-text">This is amplification.</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Slide 8 — The Principle -->
+        <div class="slide" id="slide-8">
+            <span class="slide-number">8/9</span>
+            <p class="body-text body-text-large">
+                Your results never exceed<br>
+                your level of thinking.
+            </p>
+            <br><br>
+            <p class="body-text body-text-large">
+                AI doesn't change that.<br>
+                <span class="gold-text bold-text">It reveals it.</span>
+            </p>
+        </div>
+
+        <!-- Slide 9 — Call to Action -->
+        <div class="slide" id="slide-9">
+            <span class="slide-number">9/9</span>
+            <p class="body-text">
+                I wrote a short piece on how I use AI<br>
+                to climb the Intelligence Hill.
+            </p>
+            <p class="link-text">
+                🔗 rajc.work/blog/climb-intelligence-hill-with-ai
+            </p>
+            <p class="tagline">
+                Think higher. Not faster.
+            </p>
+            <p class="footer-text">
+                Raj Champaneriya | rajc.work
+            </p>
+        </div>
+    </div>
+</body>
+</html>
