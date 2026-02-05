@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Shared.Contracts;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 
@@ -20,29 +21,30 @@ public class SseController : ControllerBase
         _logger = logger;
     }
 
+    /// <summary>
+    /// Stream real-time market data using Server-Sent Events.
+    /// Leverages IAsyncEnumerable pattern for clean, composable streaming.
+    /// </summary>
     [HttpGet("stream")]
     public async Task Stream(CancellationToken cancellationToken)
     {
+        // Configure SSE response headers
         Response.Headers.Append("Content-Type", "text/event-stream");
         Response.Headers.Append("Cache-Control", "no-cache");
         Response.Headers.Append("Connection", "keep-alive");
+        Response.Headers.Append("X-Accel-Buffering", "no"); // Disable nginx buffering
 
         var clientId = Guid.NewGuid().ToString("N");
-        _logger.LogInformation("Client {ClientId} connected", clientId);
+        _logger.LogInformation("Client {ClientId} connected for SSE stream", clientId);
 
         try
         {
-            // Send connection confirmation
-            await WriteEvent("connected", 
-                new { clientId, timestamp = DateTime.UtcNow }, 
-                cancellationToken);
-
-            var reader = _channel.Reader;
-            using var heartbeatTimer = new PeriodicTimer(TimeSpan.FromSeconds(15));
-            var readTask = ReadChannelAsync(reader, clientId, cancellationToken);
-            var heartbeatTask = SendHeartbeatsAsync(heartbeatTimer, cancellationToken);
-
-            await Task.WhenAny(readTask, heartbeatTask);
+            // Stream events using IAsyncEnumerable pattern
+            await foreach (var sseEvent in StreamEventsAsync(clientId, cancellationToken))
+            {
+                await Response.WriteAsync(sseEvent, cancellationToken);
+                await Response.Body.FlushAsync(cancellationToken);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -54,37 +56,55 @@ public class SseController : ControllerBase
         }
     }
 
-    private async Task ReadChannelAsync(
-        ChannelReader<MarketDataEvent> reader,
+    private async IAsyncEnumerable<string> StreamEventsAsync(
         string clientId,
-        CancellationToken ct)
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await foreach (var marketData in reader.ReadAllAsync(ct))
+        // Send connection confirmation event
+        yield return FormatSseEvent(
+            "connected",
+            new { clientId, timestamp = DateTime.UtcNow },
+            $"{clientId}-0");
+
+        var reader = _channel.Reader;
+        var eventId = 1L;
+        var lastHeartbeat = DateTime.UtcNow;
+
+        // Stream market data with periodic heartbeats
+        await foreach (var marketData in reader.ReadAllAsync(cancellationToken))
         {
-            await WriteEvent("marketdata", marketData, ct);
+            // Send market data event
+            yield return FormatSseEvent(
+                "marketdata",
+                marketData,
+                $"{clientId}-{eventId++}");
+
+            // Send heartbeat every 15 seconds
+            if ((DateTime.UtcNow - lastHeartbeat).TotalSeconds >= 15)
+            {
+                yield return FormatSseEvent(
+                    "heartbeat",
+                    new { timestamp = DateTime.UtcNow },
+                    $"{clientId}-heartbeat");
+                lastHeartbeat = DateTime.UtcNow;
+            }
         }
     }
 
-    private async Task SendHeartbeatsAsync(
-        PeriodicTimer timer,
-        CancellationToken ct)
+    private static string FormatSseEvent(string eventType, object data, string? id = null)
     {
-        while (await timer.WaitForNextTickAsync(ct))
+        var sb = new StringBuilder();
+        
+        if (!string.IsNullOrEmpty(id))
         {
-            await WriteEvent("heartbeat", 
-                new { timestamp = DateTime.UtcNow }, 
-                ct);
+            sb.AppendLine($"id: {id}");
         }
-    }
-
-    private async Task WriteEvent(
-        string eventName, 
-        object data, 
-        CancellationToken ct)
-    {
-        var json = JsonSerializer.Serialize(data);
-        await Response.WriteAsync($"event: {eventName}\n", ct);
-        await Response.WriteAsync($"data: {json}\n\n", ct);
-        await Response.Body.FlushAsync(ct);
+        
+        sb.AppendLine($"event: {eventType}");
+        sb.AppendLine($"data: {JsonSerializer.Serialize(data)}");
+        sb.AppendLine(); // Empty line signals end of event
+        
+        return sb.ToString();
     }
 }
+

@@ -1,5 +1,7 @@
 using Broker.Service;
+using Broker.Service.Services;
 using StackExchange.Redis;
+using System.Text;
 using System.Threading.Channels;
 using Shared.Contracts;
 using OpenTelemetry.Resources;
@@ -20,6 +22,10 @@ builder.Services.AddSingleton(Channel.CreateBounded<MarketDataEvent>(
         SingleWriter = true,
         FullMode = BoundedChannelFullMode.DropOldest // Drop oldest messages on backpressure
     }));
+
+// Event buffer for SSE replay support (keeps last 1000 events in memory)
+var bufferSize = builder.Configuration.GetValue<int>("SSE:BufferSize", 1000);
+builder.Services.AddSingleton(new MarketEventBuffer(bufferSize));
 
 // Background consumer
 builder.Services.AddHostedService<RedisStreamConsumer>();
@@ -90,4 +96,57 @@ app.UseCors();
 app.MapHealthChecks("/health");
 app.MapControllers();
 
+// Minimal API endpoint for SSE - demonstrates clean .NET 10 streaming pattern
+// Uses IAsyncEnumerable for composable, efficient event streaming
+app.MapGet("/api/marketdata/stream-minimal", async (
+    Channel<MarketDataEvent> channel,
+    ILogger<Program> logger,
+    HttpResponse response,
+    CancellationToken cancellationToken) =>
+{
+    var clientId = Guid.NewGuid().ToString("N");
+    logger.LogInformation("Minimal API: Client {ClientId} connected", clientId);
+
+    // Configure SSE response headers
+    response.Headers.Append("Content-Type", "text/event-stream");
+    response.Headers.Append("Cache-Control", "no-cache");
+    response.Headers.Append("Connection", "keep-alive");
+
+    try
+    {
+        // Send connection event
+        await response.WriteAsync(FormatSseEvent("connected", new { clientId, timestamp = DateTime.UtcNow }), cancellationToken);
+        await response.Body.FlushAsync(cancellationToken);
+
+        // Stream market data events using IAsyncEnumerable
+        await foreach (var data in channel.Reader.ReadAllAsync(cancellationToken))
+        {
+            await response.WriteAsync(FormatSseEvent("marketdata", data), cancellationToken);
+            await response.Body.FlushAsync(cancellationToken);
+        }
+    }
+    catch (OperationCanceledException)
+    {
+        logger.LogInformation("Minimal API: Client {ClientId} disconnected", clientId);
+    }
+})
+.WithName("StreamMarketDataMinimal")
+.Produces(StatusCodes.Status200OK, contentType: "text/event-stream");
+
 app.Run();
+
+static string FormatSseEvent(string eventType, object data, string? id = null)
+{
+    var sb = new StringBuilder();
+    
+    if (!string.IsNullOrEmpty(id))
+    {
+        sb.AppendLine($"id: {id}");
+    }
+    
+    sb.AppendLine($"event: {eventType}");
+    sb.AppendLine($"data: {System.Text.Json.JsonSerializer.Serialize(data)}");
+    sb.AppendLine();
+    
+    return sb.ToString();
+}
