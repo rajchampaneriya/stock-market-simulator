@@ -27,6 +27,7 @@ export class PriceAggregator {
   private currentCandle: OHLC | null = null;
   private currentIntervalKey: string | null = null;
   private readonly maxHistory: number;
+  private seenIntervals: Set<number> = new Set(); // track by timestamp ms to avoid dupes
 
   constructor(_windowSizeMs: number = 60000, maxHistory: number = 60) {
     this.maxHistory = maxHistory;
@@ -38,6 +39,7 @@ export class PriceAggregator {
    */
   addCandlestickEvent(event: CandlestickEvent): OHLC[] | null {
     const intervalKey = event.intervalStart;
+    const intervalMs = new Date(intervalKey).getTime();
 
     if (event.isComplete) {
       // Finalise this candle
@@ -50,13 +52,25 @@ export class PriceAggregator {
         volume: event.volume,
       };
 
-      // Only add if we don't already have this interval
-      const lastCompleted = this.completedCandles[this.completedCandles.length - 1];
-      if (!lastCompleted || lastCompleted.timestamp.getTime() !== candle.timestamp.getTime()) {
-        this.completedCandles.push(candle);
+      if (this.seenIntervals.has(intervalMs)) {
+        // Update existing candle in place
+        const idx = this.completedCandles.findIndex(
+          c => c.timestamp.getTime() === intervalMs
+        );
+        if (idx >= 0) {
+          this.completedCandles[idx] = candle;
+        }
       } else {
-        // Update in place (e.g., late completion emit)
-        this.completedCandles[this.completedCandles.length - 1] = candle;
+        this.seenIntervals.add(intervalMs);
+        // Insert in sorted position (historical candles may arrive before live ones)
+        const insertIdx = this.completedCandles.findIndex(
+          c => c.timestamp.getTime() > intervalMs
+        );
+        if (insertIdx === -1) {
+          this.completedCandles.push(candle);
+        } else {
+          this.completedCandles.splice(insertIdx, 0, candle);
+        }
       }
 
       // Trim history
@@ -106,5 +120,6 @@ export class PriceAggregator {
     this.completedCandles = [];
     this.currentCandle = null;
     this.currentIntervalKey = null;
+    this.seenIntervals.clear();
   }
 }

@@ -42,6 +42,11 @@ builder.Services.AddSingleton<TickBroadcaster>();
 var bufferSize = builder.Configuration.GetValue<int>("SSE:BufferSize", 1000);
 builder.Services.AddSingleton(new MarketEventBuffer(bufferSize));
 
+// Candlestick history — stores completed candles + seeds historical data for chart density
+var historyMaxCandles = builder.Configuration.GetValue<int>("Candlestick:MaxHistory", 60);
+var historySeedCount = builder.Configuration.GetValue<int>("Candlestick:SeedCount", 30);
+builder.Services.AddSingleton(new CandlestickHistory(historyMaxCandles, historySeedCount));
+
 // Background consumer (reads from Redis stream)
 builder.Services.AddHostedService<RedisStreamConsumer>();
 

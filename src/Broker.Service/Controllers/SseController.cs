@@ -3,8 +3,7 @@ using Shared.Contracts;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
-
-// ReSharper disable once CheckNamespace
+using Broker.Service.Services;
 
 namespace Broker.Service.Controllers;
 
@@ -14,15 +13,18 @@ public class SseController : ControllerBase
 {
     private readonly Channel<MarketDataEvent> _channel;
     private readonly Channel<CandlestickEvent> _candleChannel;
+    private readonly CandlestickHistory _history;
     private readonly ILogger<SseController> _logger;
 
     public SseController(
         Channel<MarketDataEvent> channel,
         Channel<CandlestickEvent> candleChannel,
+        CandlestickHistory history,
         ILogger<SseController> logger)
     {
         _channel = channel;
         _candleChannel = candleChannel;
+        _history = history;
         _logger = logger;
     }
 
@@ -70,6 +72,27 @@ public class SseController : ControllerBase
             "connected",
             new { clientId, timestamp = DateTime.UtcNow },
             $"{clientId}-0");
+
+        // Replay historical candles so chart has density immediately
+        var allHistory = _history.GetAllHistory();
+        var historyCount = 0;
+        foreach (var (symbol, candles) in allHistory)
+        {
+            foreach (var candle in candles)
+            {
+                yield return FormatSseEvent(
+                    "candlestick",
+                    candle,
+                    $"{clientId}-h{historyCount++}");
+            }
+        }
+
+        if (historyCount > 0)
+        {
+            _logger.LogInformation(
+                "Sent {Count} historical candles to client {ClientId}",
+                historyCount, clientId);
+        }
 
         var tickReader = _channel.Reader;
         var candleReader = _candleChannel.Reader;
