@@ -15,6 +15,22 @@ export interface Security {
   changePercent: number;
 }
 
+/**
+ * Backend-produced candlestick event (1-minute OHLCV).
+ * Streamed via SSE "candlestick" event type.
+ */
+export interface CandlestickEvent {
+  symbol: string;
+  intervalStart: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  tickCount: number;
+  isComplete: boolean;
+}
+
 export interface ConsumerGroupInfo {
   groupName: string;
   consumersCount: number;

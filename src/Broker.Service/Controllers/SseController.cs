@@ -13,13 +13,16 @@ namespace Broker.Service.Controllers;
 public class SseController : ControllerBase
 {
     private readonly Channel<MarketDataEvent> _channel;
+    private readonly Channel<CandlestickEvent> _candleChannel;
     private readonly ILogger<SseController> _logger;
 
     public SseController(
         Channel<MarketDataEvent> channel,
+        Channel<CandlestickEvent> candleChannel,
         ILogger<SseController> logger)
     {
         _channel = channel;
+        _candleChannel = candleChannel;
         _logger = logger;
     }
 
@@ -68,18 +71,38 @@ public class SseController : ControllerBase
             new { clientId, timestamp = DateTime.UtcNow },
             $"{clientId}-0");
 
-        var reader = _channel.Reader;
+        var tickReader = _channel.Reader;
+        var candleReader = _candleChannel.Reader;
         var eventId = 1L;
         var lastHeartbeat = DateTime.UtcNow;
 
-        // Stream market data with periodic heartbeats
-        await foreach (var marketData in reader.ReadAllAsync(cancellationToken))
+        // Multiplex both tick and candle channels into a single SSE stream.
+        // We use Task.WhenAny on WaitToReadAsync to service whichever channel
+        // has data first — no busy-wait spin.
+        while (!cancellationToken.IsCancellationRequested)
         {
-            // Send market data event
-            yield return FormatSseEvent(
-                "marketdata",
-                marketData,
-                $"{clientId}-{eventId++}");
+            var tickWait = tickReader.WaitToReadAsync(cancellationToken).AsTask();
+            var candleWait = candleReader.WaitToReadAsync(cancellationToken).AsTask();
+
+            await Task.WhenAny(tickWait, candleWait);
+
+            // Drain all available ticks
+            while (tickReader.TryRead(out var marketData))
+            {
+                yield return FormatSseEvent(
+                    "marketdata",
+                    marketData,
+                    $"{clientId}-{eventId++}");
+            }
+
+            // Drain all available candle events
+            while (candleReader.TryRead(out var candleEvent))
+            {
+                yield return FormatSseEvent(
+                    "candlestick",
+                    candleEvent,
+                    $"{clientId}-c{eventId++}");
+            }
 
             // Send heartbeat every 15 seconds
             if ((DateTime.UtcNow - lastHeartbeat).TotalSeconds >= 15)

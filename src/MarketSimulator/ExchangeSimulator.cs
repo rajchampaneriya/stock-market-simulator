@@ -8,8 +8,18 @@ public class ExchangeSimulator : BackgroundService
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly ILogger<ExchangeSimulator> _logger;
     private readonly IConfiguration _configuration;
-    private readonly Dictionary<string, decimal> _lastPrices = new();
-    private readonly Random _random = new();
+    private readonly RealisticPriceEngine _priceEngine = new();
+
+    /// <summary>
+    /// Per-symbol profiles — different securities behave differently.
+    /// </summary>
+    private static readonly Dictionary<string, SymbolProfile> DefaultProfiles = new()
+    {
+        ["NIFTY50"]   = new() { Symbol = "NIFTY50",   BasePrice = 1000m, AnnualisedVolatility = 0.14, MeanReversionStrength = 0.0015, BaseVolume = 6000 },
+        ["BANKNIFTY"] = new() { Symbol = "BANKNIFTY", BasePrice = 1000m, AnnualisedVolatility = 0.18, MeanReversionStrength = 0.0012, BaseVolume = 5500 },
+        ["RELIANCE"]  = new() { Symbol = "RELIANCE",  BasePrice = 1000m, AnnualisedVolatility = 0.20, MeanReversionStrength = 0.0020, BaseVolume = 8000 },
+        ["TCS"]       = new() { Symbol = "TCS",       BasePrice = 1000m, AnnualisedVolatility = 0.16, MeanReversionStrength = 0.0018, BaseVolume = 4500 },
+    };
 
     public ExchangeSimulator(
         IHttpClientFactory httpClientFactory,
@@ -26,17 +36,34 @@ public class ExchangeSimulator : BackgroundService
         var symbols = _configuration.GetSection("Symbols").Get<string[]>() 
             ?? new[] { "NIFTY50", "BANKNIFTY" };
         var tickInterval = _configuration.GetValue<int>("TickIntervalMs", 300);
-        var volatility = _configuration.GetValue<double>("Volatility", 0.5);
         var initialPrice = _configuration.GetValue<decimal>("InitialPrice", 1000m);
 
-        _logger.LogInformation("Exchange Simulator starting with {SymbolCount} symbols, tick interval {TickInterval}ms", 
-            symbols.Length, tickInterval);
-
-        // Initialize prices
+        // Register each symbol with the realistic price engine
         foreach (var symbol in symbols)
         {
-            _lastPrices[symbol] = initialPrice;
+            if (DefaultProfiles.TryGetValue(symbol, out var profile))
+            {
+                // Override base price from config if provided
+                var adjusted = profile with { BasePrice = initialPrice };
+                _priceEngine.RegisterSymbol(adjusted);
+            }
+            else
+            {
+                // Unknown symbol — use sensible defaults
+                _priceEngine.RegisterSymbol(new SymbolProfile
+                {
+                    Symbol = symbol,
+                    BasePrice = initialPrice,
+                    AnnualisedVolatility = 0.16,
+                    MeanReversionStrength = 0.0015,
+                    BaseVolume = 5000,
+                });
+            }
         }
+
+        _logger.LogInformation(
+            "Exchange Simulator starting with {SymbolCount} symbols, tick interval {TickInterval}ms, realistic price engine",
+            symbols.Length, tickInterval);
 
         using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(tickInterval));
 
@@ -44,28 +71,21 @@ public class ExchangeSimulator : BackgroundService
         {
             foreach (var symbol in symbols)
             {
-                var marketData = GenerateTick(symbol, volatility);
+                var marketData = GenerateTick(symbol);
                 await SendToIngestion(marketData, stoppingToken);
             }
         }
     }
 
-    private MarketDataEvent GenerateTick(string symbol, double volatility)
+    private MarketDataEvent GenerateTick(string symbol)
     {
-        var lastPrice = _lastPrices[symbol];
-        var change = (decimal)(_random.NextDouble() - 0.5) * 2 * (decimal)volatility;
-        var newPrice = lastPrice + change;
-        
-        // Ensure price stays positive
-        newPrice = Math.Max(0.01m, newPrice);
-        
-        _lastPrices[symbol] = newPrice;
+        var (price, volume) = _priceEngine.NextTick(symbol);
 
         return new MarketDataEvent
         {
             Symbol = symbol,
-            Price = Math.Round(newPrice, 2),
-            Volume = _random.Next(100, 10000),
+            Price = price,
+            Volume = volume,
             Timestamp = DateTime.UtcNow
         };
     }

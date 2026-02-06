@@ -13,22 +13,40 @@ var builder = WebApplication.CreateBuilder(args);
 // The "cache" name matches the resource name in AppHost
 builder.AddRedisClient("cache");
 
-// Channel for broadcasting with bounded capacity to prevent memory issues
+// Channel for SSE tick broadcast with bounded capacity to prevent memory issues
 var channelCapacity = builder.Configuration.GetValue<int>("Channel:Capacity", 1000);
 builder.Services.AddSingleton(Channel.CreateBounded<MarketDataEvent>(
     new BoundedChannelOptions(channelCapacity) 
     { 
         SingleReader = false, 
-        SingleWriter = true,
+        SingleWriter = false,
         FullMode = BoundedChannelFullMode.DropOldest // Drop oldest messages on backpressure
     }));
+
+// Channel for candlestick events (aggregator → SSE)
+builder.Services.AddSingleton(Channel.CreateBounded<CandlestickEvent>(
+    new BoundedChannelOptions(500)
+    {
+        SingleReader = false,
+        SingleWriter = true,
+        FullMode = BoundedChannelFullMode.DropOldest,
+    }));
+
+// Aggregator's dedicated tick channel — receives a copy of every tick
+builder.Services.AddSingleton<AggregatorTickChannel>();
+
+// Tick broadcaster — fans out each tick to SSE channel + aggregator channel
+builder.Services.AddSingleton<TickBroadcaster>();
 
 // Event buffer for SSE replay support (keeps last 1000 events in memory)
 var bufferSize = builder.Configuration.GetValue<int>("SSE:BufferSize", 1000);
 builder.Services.AddSingleton(new MarketEventBuffer(bufferSize));
 
-// Background consumer
+// Background consumer (reads from Redis stream)
 builder.Services.AddHostedService<RedisStreamConsumer>();
+
+// Candlestick aggregation pipeline (tick → OHLCV candles)
+builder.Services.AddHostedService<CandlestickAggregator>();
 
 // Health checks
 var redisConnection = builder.Configuration.GetConnectionString("cache") ?? "localhost:6379";

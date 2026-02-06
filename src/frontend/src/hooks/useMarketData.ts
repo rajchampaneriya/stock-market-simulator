@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { MarketDataEvent, Security } from '../types';
+import type { MarketDataEvent, Security, CandlestickEvent } from '../types';
 import { PriceAggregator, type OHLC } from '../utils/priceAggregator';
 
 interface UseMarketDataResult {
@@ -18,6 +18,7 @@ export function useMarketData(brokerUrl: string): UseMarketDataResult {
   const aggregators = useRef<Map<string, PriceAggregator>>(new Map());
   const maxReconnectAttempts = 5;
 
+  // --- Tick handler (watchlist + banner) ---
   const updateSecurity = useCallback((event: MarketDataEvent) => {
     setSecurities((prev) => {
       const updated = new Map(prev);
@@ -41,18 +42,21 @@ export function useMarketData(brokerUrl: string): UseMarketDataResult {
       updated.set(event.symbol, security);
       return updated;
     });
+  }, []);
 
+  // --- Candlestick handler (chart) ---
+  const updateCandle = useCallback((event: CandlestickEvent) => {
     if (!aggregators.current.has(event.symbol)) {
       aggregators.current.set(event.symbol, new PriceAggregator());
     }
 
     const aggregator = aggregators.current.get(event.symbol)!;
-    const ohlc = aggregator.addTick(event);
+    const history = aggregator.addCandlestickEvent(event);
 
-    if (ohlc) {
+    if (history) {
       setPriceHistory((prev) => {
         const updated = new Map(prev);
-        updated.set(event.symbol, aggregator.getHistory());
+        updated.set(event.symbol, history);
         return updated;
       });
     }
@@ -76,9 +80,16 @@ export function useMarketData(brokerUrl: string): UseMarketDataResult {
       setReconnectAttempts(0);
     });
 
+    // Tick events → watchlist + banner (real-time per-tick)
     eventSource.addEventListener('marketdata', (e) => {
       const marketData: MarketDataEvent = JSON.parse(e.data);
       updateSecurity(marketData);
+    });
+
+    // Candlestick events → chart (1-minute OHLCV from backend aggregator)
+    eventSource.addEventListener('candlestick', (e) => {
+      const candleData: CandlestickEvent = JSON.parse(e.data);
+      updateCandle(candleData);
     });
 
     eventSource.addEventListener('heartbeat', (e) => {
@@ -110,7 +121,7 @@ export function useMarketData(brokerUrl: string): UseMarketDataResult {
       eventSource.close();
       setIsConnected(false);
     };
-  }, [brokerUrl, updateSecurity, reconnectAttempts]);
+  }, [brokerUrl, updateSecurity, updateCandle, reconnectAttempts]);
 
   return { securities, isConnected, error, priceHistory };
 }

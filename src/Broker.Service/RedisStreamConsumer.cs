@@ -1,3 +1,4 @@
+using Broker.Service.Services;
 using Shared.Contracts;
 using StackExchange.Redis;
 using System.Text.Json;
@@ -10,6 +11,7 @@ public class RedisStreamConsumer : BackgroundService
     private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<RedisStreamConsumer> _logger;
     private readonly Channel<MarketDataEvent> _channel;
+    private readonly TickBroadcaster _broadcaster;
     private readonly string _consumerName;
     
     // Thread-safe for single-writer scenario (this BackgroundService is the only writer)
@@ -23,11 +25,13 @@ public class RedisStreamConsumer : BackgroundService
         IConnectionMultiplexer redis,
         ILogger<RedisStreamConsumer> logger,
         Channel<MarketDataEvent> channel,
+        TickBroadcaster broadcaster,
         IConfiguration configuration)
     {
         _redis = redis;
         _logger = logger;
         _channel = channel;
+        _broadcaster = broadcaster;
         
         // Generate unique consumer name for horizontal scaling
         // Uses configured prefix or default "broker", plus hostname and a GUID
@@ -160,7 +164,8 @@ public class RedisStreamConsumer : BackgroundService
         if (marketData != null)
         {
             UpdateCache(marketData);
-            await _channel.Writer.WriteAsync(marketData, ct);
+            // Broadcast to both the SSE channel and the candlestick aggregator
+            _broadcaster.Broadcast(marketData);
             
             await db.StreamAcknowledgeAsync(StreamKey, ConsumerGroup, entry.Id);
             
