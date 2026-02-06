@@ -1,12 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Container,
   Typography,
   Box,
   Button,
   CircularProgress,
   Alert,
-  Paper,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import { RedisStreamTable } from '../components/RedisStreamTable';
@@ -15,8 +13,7 @@ import { RedisMonitoringService } from '../services/redisMonitoringService';
 import type { RedisStreamInfo } from '../types';
 
 /**
- * Redis Monitoring Page
- * Displays Redis Streams activity for debugging and learning
+ * Redis Monitoring Page — Dark terminal-style
  */
 export function RedisMonitoring() {
   const [streams, setStreams] = useState<RedisStreamInfo[]>([]);
@@ -24,8 +21,6 @@ export function RedisMonitoring() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  // Use empty string to make requests relative (will use Vite proxy)
-  // In production, this would be the actual broker URL from env var
   const brokerUrl = import.meta.env.DEV ? '' : (import.meta.env.VITE_BROKER_URL || 'http://localhost:5002');
   const service = new RedisMonitoringService(brokerUrl);
 
@@ -46,7 +41,6 @@ export function RedisMonitoring() {
     }
   }, [brokerUrl]);
 
-  // Fetch data on component mount
   useEffect(() => {
     fetchData();
   }, [fetchData]);
@@ -56,78 +50,107 @@ export function RedisMonitoring() {
   };
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ my: 4 }}>
+    <Box sx={{ flex: 1, overflow: 'auto', bgcolor: '#131722' }}>
+      <Box sx={{ maxWidth: 1200, mx: 'auto', p: 3 }}>
         {/* Page Header */}
-        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <Typography variant="h4" component="h1" gutterBottom>
+        <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <Box>
+            <Typography variant="h2" sx={{ mb: 0.5 }}>
               Redis Stream Monitoring
             </Typography>
-            <Typography variant="subtitle1" color="text.secondary">
-              View real-time Redis Streams activity and verify data flow
+            <Typography variant="subtitle1" sx={{ color: '#787b86' }}>
+              Real-time Redis Streams activity and data flow verification
             </Typography>
-          </div>
-          <Button
-            variant="contained"
-            startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <RefreshIcon />}
-            onClick={handleRefresh}
-            disabled={loading}
-          >
-            Refresh
-          </Button>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            {lastUpdated && !loading && (
+              <Typography variant="caption" sx={{ color: '#5d606b', fontFamily: "'JetBrains Mono', monospace" }}>
+                {lastUpdated.toLocaleTimeString()}
+              </Typography>
+            )}
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={loading ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon sx={{ fontSize: 16 }} />}
+              onClick={handleRefresh}
+              disabled={loading}
+              sx={{
+                borderColor: '#363a45',
+                color: '#d1d4dc',
+                '&:hover': {
+                  borderColor: '#2962ff',
+                  bgcolor: 'rgba(41, 98, 255, 0.08)',
+                },
+              }}
+            >
+              Refresh
+            </Button>
+          </Box>
         </Box>
 
-        {/* Last Updated Info */}
-        {lastUpdated && !loading && (
-          <Paper elevation={0} sx={{ p: 1.5, mb: 2, backgroundColor: '#f5f5f5' }}>
-            <Typography variant="body2" color="text.secondary">
-              Last updated: {lastUpdated.toLocaleString()}
-            </Typography>
-          </Paper>
-        )}
-
-        {/* Error Display */}
+        {/* Error */}
         {error && (
-          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+          <Alert
+            severity="error"
+            sx={{
+              mb: 3,
+              bgcolor: 'rgba(239, 83, 80, 0.08)',
+              border: '1px solid rgba(239, 83, 80, 0.2)',
+              color: '#ef5350',
+            }}
+            onClose={() => setError(null)}
+          >
             {error}
           </Alert>
         )}
 
-        {/* Loading State */}
+        {/* Loading */}
         {loading && streams.length === 0 && (
-          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', my: 4 }}>
-            <CircularProgress sx={{ mr: 2 }} />
-            <Typography>Loading stream information...</Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', my: 6 }}>
+            <CircularProgress size={28} sx={{ mr: 2, color: '#2962ff' }} />
+            <Typography sx={{ color: '#787b86', fontSize: '0.8125rem' }}>
+              Loading stream information...
+            </Typography>
           </Box>
         )}
 
         {/* Stream Table */}
-        {!loading || streams.length > 0 ? (
+        {(!loading || streams.length > 0) && (
           <Box sx={{ mb: 4 }}>
-            <Typography variant="h5" component="h2" gutterBottom>
-              Active Streams
+            <Typography variant="subtitle2" sx={{ mb: 1.5, color: '#787b86' }}>
+              ACTIVE STREAMS
             </Typography>
             <RedisStreamTable streams={streams} />
           </Box>
-        ) : null}
+        )}
 
         {/* Educational Content */}
         <RedisExplanation />
 
-        {/* Debug Information */}
-        <Paper elevation={1} sx={{ p: 2, mt: 3, backgroundColor: '#fafafa' }}>
-          <Typography variant="subtitle2" gutterBottom>
-            Debug Information
+        {/* Debug bar */}
+        <Box
+          sx={{
+            mt: 3,
+            p: 1.5,
+            borderRadius: 1,
+            bgcolor: '#1e222d',
+            border: '1px solid #2a2e39',
+            display: 'flex',
+            gap: 3,
+            alignItems: 'center',
+          }}
+        >
+          <Typography variant="caption" sx={{ color: '#5d606b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Debug
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Broker URL: <code>{brokerUrl}</code>
+          <Typography variant="caption" sx={{ fontFamily: "'JetBrains Mono', monospace", color: '#787b86' }}>
+            broker: {brokerUrl || 'proxy'}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
-            API Endpoint: <code>{brokerUrl}/api/redis/streams/info</code>
+          <Typography variant="caption" sx={{ fontFamily: "'JetBrains Mono', monospace", color: '#787b86' }}>
+            endpoint: /api/redis/streams/info
           </Typography>
-        </Paper>
+        </Box>
       </Box>
-    </Container>
+    </Box>
   );
 }
