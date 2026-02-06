@@ -71,13 +71,13 @@ export const StockCard: React.FC<StockCardProps> = ({ security, priceHistory }) 
               component="div" 
               sx={{ color: priceColor, fontWeight: 'bold' }}
             >
-              ₹{security.lastPrice.toFixed(2)}
+              ₹{(security.lastPrice ?? 0).toFixed(2)}
             </Typography>
           </Box>
 
           <Box>
             <Chip
-              label={`${isPositive ? '+' : ''}${security.change.toFixed(2)} (${isPositive ? '+' : ''}${security.changePercent.toFixed(2)}%)`}
+              label={`${isPositive ? '+' : ''}${(security.change ?? 0).toFixed(2)} (${isPositive ? '+' : ''}${(security.changePercent ?? 0).toFixed(2)}%)`}
               size="small"
               sx={{
                 backgroundColor: bgColor,

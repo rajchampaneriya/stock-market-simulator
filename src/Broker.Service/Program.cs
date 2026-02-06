@@ -137,6 +137,10 @@ app.Run();
 
 static string FormatSseEvent(string eventType, object data, string? id = null)
 {
+    var options = new System.Text.Json.JsonSerializerOptions
+    {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+    };
     var sb = new StringBuilder();
     
     if (!string.IsNullOrEmpty(id))
@@ -145,7 +149,7 @@ static string FormatSseEvent(string eventType, object data, string? id = null)
     }
     
     sb.AppendLine($"event: {eventType}");
-    sb.AppendLine($"data: {System.Text.Json.JsonSerializer.Serialize(data)}");
+    sb.AppendLine($"data: {System.Text.Json.JsonSerializer.Serialize(data, options)}");
     sb.AppendLine();
     
     return sb.ToString();

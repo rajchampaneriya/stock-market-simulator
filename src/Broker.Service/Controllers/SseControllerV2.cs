@@ -114,6 +114,11 @@ public class SseControllerV2 : ControllerBase
         }
     }
 
+    private static readonly JsonSerializerOptions CamelCaseOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     private static string FormatSseEvent(string eventType, object data, string? id = null)
     {
         var sb = new StringBuilder();
@@ -124,7 +129,7 @@ public class SseControllerV2 : ControllerBase
         }
 
         sb.AppendLine($"event: {eventType}");
-        sb.AppendLine($"data: {JsonSerializer.Serialize(data)}");
+        sb.AppendLine($"data: {JsonSerializer.Serialize(data, CamelCaseOptions)}");
         sb.AppendLine(); // Empty line signals end of event
 
         return sb.ToString();
