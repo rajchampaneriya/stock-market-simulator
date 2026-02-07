@@ -1,126 +1,252 @@
 # Stock Market Simulator
 
-A real-time stock market data simulation system built with .NET 10 and Aspire, demonstrating streaming architectures, Redis pub/sub, and Server-Sent Events (SSE).
+A production-grade real-time streaming system that simulates financial market data using event-driven architecture. Built with .NET 10, Redis Streams, and React, this project demonstrates scalable patterns for high-frequency data distribution.
+
+## Features
+
+**Real-Time Data Pipeline**
+- Sub-second tick-to-browser latency using Server-Sent Events (SSE)
+- Redis Streams with consumer groups for horizontal scalability
+- Event-driven architecture with bounded channels and backpressure handling
+
+**Realistic Market Simulation**
+- Geometric Brownian Motion with mean reversion (Ornstein-Uhlenbeck process)
+- GARCH-inspired volatility clustering
+- Configurable per-symbol price dynamics
+
+**Professional UI**
+- TradingView-inspired dark theme dashboard
+- D3.js custom candlestick charts with interactive crosshair
+- Live price updates, watchlist, and real-time OHLCV aggregation
+
+**Production Patterns**
+- OpenTelemetry distributed tracing
+- Health checks and observability
+- Retry logic with exponential backoff
+- SSE reconnection with replay support
+
+## Architecture
+
+```
+Market Simulator → Ingestion API → Redis Streams → Broker Service → SSE → React Frontend
+                     (HTTP)          (Pub/Sub)       (Consumer)    (Push)   (EventSource)
+```
+
+The system consists of five services orchestrated by .NET Aspire:
+
+| Service | Technology | Purpose |
+|---|---|---|
+| **Market Simulator** | .NET Worker | Generates realistic price ticks using quantitative finance models |
+| **Ingestion API** | ASP.NET Minimal API | Validates and publishes market data to Redis Streams |
+| **Broker Service** | ASP.NET Web API | Consumes from Redis, aggregates candles, streams via SSE |
+| **Web Frontend** | React + TypeScript | Real-time trading dashboard with D3 charts |
+| **Redis** | Redis 7+ | Message broker with stream support |
 
 ## Quick Start
 
 ### Prerequisites
 - .NET 10.0.102+ SDK
 - Docker Desktop
+- Node.js 18+ (for frontend)
 
-### Running the Application
+### Run All Services
 
 ```bash
-# 1. Start Redis and build all projects
+# Start Redis
+docker run -d --name redis -p 6379:6379 redis:latest
+
+# Option 1: Use helper script
 ./run-services.sh
 
-# 2. Start services in separate terminals:
-
-# Terminal 1 - Market Ingestion API
-cd src/MarketIngestion.Api
-export PATH="$HOME/.dotnet:$PATH"
-dotnet run --urls "http://localhost:5001"
-
-# Terminal 2 - Broker Service
-cd src/Broker.Service
-export PATH="$HOME/.dotnet:$PATH"
-dotnet run --urls "http://localhost:5002"
-
-# Terminal 3 - Market Simulator
-cd src/MarketSimulator
-export PATH="$HOME/.dotnet:$PATH"
+# Option 2: Manual start with Aspire (recommended)
+cd src/stock-market-simulator.AppHost
 dotnet run
-
-# Terminal 4 - Web Frontend (optional)
-cd src/frontend
-npm install
-npm run dev
 ```
 
-### Service Endpoints
-- **Market Ingestion API:** http://localhost:5001
-- **Broker Service (SSE):** http://localhost:5002
-- **Web Frontend:** http://localhost:5173 (Vite dev server)
-- **Redis:** localhost:6379
+The system will start in sequence:
+1. Redis (port 6379)
+2. Market Ingestion API (port 5001)
+3. Broker Service (port 5002)  
+4. Market Simulator (background)
+5. Web Frontend (port 5173)
 
-## Architecture
+Open your browser to http://localhost:5173
 
-The system simulates a stock market data pipeline:
+### Verify It Works
 
-1. **MarketSimulator** - Generates synthetic market data (price updates, trades)
-2. **MarketIngestion.Api** - Receives market data via HTTP and publishes to Redis
-3. **Redis** - Message broker for real-time data distribution
-4. **Broker.Service** - Consumes from Redis and streams data to clients via Server-Sent Events
-5. **Web Frontend** - React/TypeScript UI displaying real-time market data with candlestick charts
+You should see:
+- 4 stock symbols (NIFTY50, BANKNIFTY, RELIANCE, TCS) in the ticker strip
+- Prices updating every ~300ms with green/red flashes
+- Candlestick chart building in real-time
+- "LIVE" status indicator in the bottom bar
 
 ## Technology Stack
 
-### Backend
-- **.NET 10** - Latest framework with performance improvements
-- **Aspire 13.1.0** - Cloud-native orchestration
-- **Redis** - In-memory data store and message broker
-- **StackExchange.Redis** - Redis client library
-- **Server-Sent Events** - Real-time streaming to web clients
+**Backend**
+- .NET 10 with C# 13
+- ASP.NET Core (Minimal APIs + Controllers)
+- Redis Streams (StackExchange.Redis)
+- .NET Aspire 13.1 orchestration
+- OpenTelemetry with OTLP export
 
-### Frontend
-- **React 19** - UI framework
-- **TypeScript 5.9** - Type safety
-- **Material UI 7** - Component library
-- **D3.js 7** - Candlestick charts
-- **Vite 7** - Build tool
+**Frontend**
+- React 19 with TypeScript 5.9
+- D3.js 7 for charts
+- Material UI 7 components
+- Vite 7 build tool
+- EventSource API for SSE
+
+## Documentation
+
+📘 **[Complete Reference Documentation](reference-docs/README.md)** — Start here for comprehensive technical documentation
+
+| Document | Description |
+|---|---|
+| [High-Level Design](reference-docs/01-HIGH-LEVEL-DESIGN.md) | System overview, component inventory, deployment topology |
+| [Low-Level Design](reference-docs/02-LOW-LEVEL-DESIGN.md) | Detailed service design, class diagrams, sequences |
+| [Architecture Decisions](reference-docs/03-ARCHITECTURE-DECISION-RECORDS.md) | 10 ADRs explaining key design choices |
+| [C4 Diagrams](reference-docs/04-C4-DIAGRAMS.md) | Visual architecture with 20+ Mermaid diagrams |
+| [Functional Guide](reference-docs/05-FUNCTIONAL-TECHNICAL-DOCUMENTATION.md) | Plain-English walkthrough for non-technical audiences |
 
 ## Project Structure
 
 ```
 src/
-├── AppHost/                  # Aspire orchestration host
-├── Shared.Contracts/         # Shared data models
-├── MarketSimulator/          # Market data generator
-├── MarketIngestion.Api/      # Data ingestion endpoint
-├── Broker.Service/           # SSE streaming service
-└── frontend/                 # React/TypeScript web UI
+├── stock-market-simulator.AppHost/    # Aspire orchestration
+├── Shared.Contracts/                   # Data models (records)
+├── MarketSimulator/                    # Price generation engine
+├── MarketIngestion.Api/                # HTTP ingestion endpoint
+├── Broker.Service/                     # Redis consumer + SSE server
+│   ├── Controllers/                    # SSE and monitoring endpoints
+│   └── Services/                       # Aggregation and history
+└── frontend/                           # React/TypeScript dashboard
+    ├── src/components/                 # Chart, cards, navigation
+    ├── src/hooks/                      # useMarketData (SSE client)
+    └── src/pages/                      # Dashboard, Redis monitoring
 ```
 
-## Documentation
+## Configuration
 
-### Architecture Documentation
-- [Architecture Overview](/docs/architecture/README.md) - **Start here** for comprehensive documentation
-- [High-Level Design](/docs/architecture/HIGH_LEVEL_DESIGN.md) - System overview with diagrams
-- [Low-Level Design](/docs/architecture/LOW_LEVEL_DESIGN.md) - Detailed component specifications
-- [C4 Diagrams](/docs/architecture/C4_DIAGRAMS.md) - Visual architecture diagrams in Mermaid format
-- [Architecture Decision Records](/docs/architecture/ADR/README.md) - Key design decisions
+### Market Simulator
 
-### Requirements & Planning
-- [Product Requirements](/docs/requirements/prd.md) - Product requirements document
-- [Technical Approach](/docs/plan/draft-technical-approach.md) - Implementation guide
+Edit `src/MarketSimulator/appsettings.json`:
 
-### Development Notes
-- [Project Status](/memory/dotnet10-status.md) - Current project status
-- [.NET 10 Upgrade Summary](/memory/dotnet10-upgrade-summary.md) - .NET 10 upgrade details
-- [Orchestration Setup](/memory/aspire-orchestration-resolution.md) - Aspire orchestration resolution
+```json
+{
+  "Symbols": ["NIFTY50", "BANKNIFTY", "RELIANCE", "TCS"],
+  "TickIntervalMs": 300,
+  "InitialPrice": 1000
+}
+```
 
-## Development Status
+### Broker Service
 
-✅ **Complete** - All services build and run successfully  
-⚠️ **Note:** Aspire Dashboard unavailable due to .NET 10/Aspire 13.1.0 DCP limitations. Services run independently via helper script.
+Edit `src/Broker.Service/appsettings.json`:
+
+```json
+{
+  "Candlestick": {
+    "IntervalSeconds": 60,
+    "EmitThrottleMs": 500,
+    "MaxHistory": 60
+  }
+}
+```
+
+## Key Design Patterns
+
+**Bounded Channels with Backpressure**  
+Uses `BoundedChannelFullMode.DropOldest` to prevent memory exhaustion. Acceptable to lose stale ticks rather than block producers.
+
+**Fan-Out with TickBroadcaster**  
+Single Redis consumer broadcasts to multiple channels (SSE + Aggregator) using non-blocking writes.
+
+**SSE with Last-Event-ID Replay**  
+`MarketEventBuffer` ring buffer enables clients to resume from last received event on reconnection.
+
+**Backend Candlestick Aggregation**  
+OHLCV candles built server-side for consistency. Throttled emission (500ms) prevents overwhelming clients.
+
+**Realistic Price Generation**  
+Combines GBM, mean reversion, and GARCH volatility to produce chart patterns indistinguishable from real market data.
+
+## Observability
+
+**Health Checks**
+- Ingestion API: http://localhost:5001/health
+- Broker Service: http://localhost:5002/health
+
+**Redis Monitoring**
+- Web UI: http://localhost:5173/redis-monitoring
+- Shows stream message count, consumer groups, pending messages
+
+**Distributed Tracing**
+- OpenTelemetry instrumentation on all .NET services
+- Console export enabled by default
+- OTLP export configured (connect to Jaeger/Tempo/Azure Monitor)
+
+## Troubleshooting
+
+| Issue | Solution |
+|---|---|
+| Dashboard shows "Connecting..." | Verify Broker Service is running on port 5002 |
+| Chart is empty | Wait 60 seconds for first candle to complete |
+| Prices not updating | Check Market Simulator is running and posting to Ingestion API |
+| Redis connection errors | Ensure Redis container is running: `docker ps` |
+
+For detailed troubleshooting, see the [Functional Documentation](reference-docs/05-FUNCTIONAL-TECHNICAL-DOCUMENTATION.md#9-monitoring-and-diagnostics).
 
 ## Building
 
 ```bash
 cd src
-export PATH="$HOME/.dotnet:$PATH"
 dotnet build
 ```
 
+All services target .NET 10.0. Frontend requires `npm install` in `src/frontend/`.
+
 ## Testing
 
-Start Redis:
 ```bash
+# Start dependencies
 docker run -d --name test-redis -p 6379:6379 redis:latest
+
+# Run tests
+cd tests
+dotnet test
 ```
 
-Run individual services with `dotnet run` in their respective directories.
+## Why This Stack?
+
+**Redis Streams over Kafka** — Simpler operational model, built-in consumer groups, already used for caching. Suitable for single-DC workloads.
+
+**SSE over WebSockets** — Unidirectional streaming is sufficient. Browser `EventSource` handles reconnection. Works with standard HTTP infrastructure.
+
+**.NET Aspire** — Service discovery, dependency ordering, and connection injection without Docker Compose complexity.
+
+**Backend Aggregation** — Single source of truth for candles. Reduces frontend complexity and CPU usage.
+
+See [Architecture Decision Records](reference-docs/03-ARCHITECTURE-DECISION-RECORDS.md) for detailed rationale.
 
 ## License
 
-See [LICENSE](LICENSE) for details.
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+## About
+
+This project demonstrates production-grade patterns for real-time data streaming systems:
+- Event-driven architecture with Redis Streams
+- Server-Sent Events for efficient server-push
+- Realistic financial data simulation using quantitative models
+- Bounded channels and backpressure handling
+- Distributed tracing and observability
+
+Built as a technical showcase of modern .NET development practices and streaming architectures.
+
+---
+
+## Acknowledgments
+
+Documentation and architectural refinement assisted by [GitHub Copilot](https://github.com/features/copilot).
