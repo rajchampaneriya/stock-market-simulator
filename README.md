@@ -2,15 +2,15 @@
 
 A production-grade real-time streaming system that simulates financial market data using event-driven architecture. Built with .NET 10, Redis Streams, and React, this project demonstrates scalable patterns for high-frequency data distribution.
 
-![Stock Market Simulator — Live Dashboard](reference-docs/images/frontend-dashboard.png)
+![Stock Market Simulator — Live Dashboard](reference-docs/images/front-end-chart-full.png)
 
 <details>
 <summary><strong>More Screenshots</strong></summary>
 
-![Watchlist and candlestick chart](reference-docs/images/frontend-dashboard-2.png)
-![Real-time price updates](reference-docs/images/frontend-dashboard-3.png)
-![Test results showing 103 passing tests](reference-docs/images/Screenshot%202026-02-07%20at%206.45.48%20AM.png)
-![.NET Aspire dashboard with all services running](reference-docs/images/Screenshot%202026-02-07%20at%207.08.06%20AM.png)
+![Watchlist and candlestick chart](reference-docs/images/frontend-chart.png)
+![.NET Aspire dashboard with all services running](reference-docs/images/aspire-dashboard.png)
+![.NET Aspire dashboard with service dependenes](reference-docs/images/aspire-dashboard-2.png)
+![System Requirements for local development](reference-docs/images/system-requirement.png)
 
 </details>
 
