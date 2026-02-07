@@ -22,6 +22,7 @@ public class CandlestickAggregator : BackgroundService
 {
     private readonly Channel<MarketDataEvent> _tickChannel;
     private readonly Channel<CandlestickEvent> _candleChannel;
+    private readonly SseClientManager _clientManager;
     private readonly CandlestickHistory _history;
     private readonly ILogger<CandlestickAggregator> _logger;
     private readonly TimeSpan _intervalDuration;
@@ -33,12 +34,14 @@ public class CandlestickAggregator : BackgroundService
     public CandlestickAggregator(
         AggregatorTickChannel aggregatorTickChannel,
         Channel<CandlestickEvent> candleChannel,
+        SseClientManager clientManager,
         CandlestickHistory history,
         ILogger<CandlestickAggregator> logger,
         IConfiguration configuration)
     {
         _tickChannel = aggregatorTickChannel.Channel;
         _candleChannel = candleChannel;
+        _clientManager = clientManager;
         _history = history;
         _logger = logger;
         _intervalDuration = TimeSpan.FromSeconds(
@@ -144,6 +147,9 @@ public class CandlestickAggregator : BackgroundService
 
         // Non-blocking write — if the channel is full, drop oldest via BoundedChannelFullMode
         _candleChannel.Writer.TryWrite(candleEvent);
+
+        // Broadcast to all connected SSE clients
+        _clientManager.BroadcastCandle(candleEvent);
 
         // Persist completed candles for historical replay on SSE connect
         if (isComplete)

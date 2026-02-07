@@ -25,24 +25,25 @@ public class AggregatorTickChannel
 
 /// <summary>
 /// Broadcasts each MarketDataEvent to multiple consumers:
-///  1. The SSE tick channel (for watchlist / banner / real-time ticks)
+///  1. Per-client SSE channels via SseClientManager (for watchlist / banner / real-time ticks)
 ///  2. The CandlestickAggregator (for OHLCV candle construction)
 ///
 /// This replaces direct single-channel writes, enabling fan-out without
-/// losing messages to either consumer.
+/// losing messages to either consumer. Each connected SSE client receives
+/// every tick through its own dedicated bounded channel.
 /// </summary>
 public class TickBroadcaster
 {
-    private readonly Channel<MarketDataEvent> _sseChannel;
+    private readonly SseClientManager _clientManager;
     private readonly Channel<MarketDataEvent> _aggregatorChannel;
     private readonly ILogger<TickBroadcaster> _logger;
 
     public TickBroadcaster(
-        Channel<MarketDataEvent> sseChannel,
+        SseClientManager clientManager,
         AggregatorTickChannel aggregatorTickChannel,
         ILogger<TickBroadcaster> logger)
     {
-        _sseChannel = sseChannel;
+        _clientManager = clientManager;
         _aggregatorChannel = aggregatorTickChannel.Channel;
         _logger = logger;
     }
@@ -53,10 +54,8 @@ public class TickBroadcaster
     /// </summary>
     public void Broadcast(MarketDataEvent tick)
     {
-        if (!_sseChannel.Writer.TryWrite(tick))
-        {
-            _logger.LogWarning("SSE channel full, tick for {Symbol} dropped", tick.Symbol);
-        }
+        // Fan out to all connected SSE clients
+        _clientManager.BroadcastTick(tick);
 
         if (!_aggregatorChannel.Writer.TryWrite(tick))
         {

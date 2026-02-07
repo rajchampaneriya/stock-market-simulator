@@ -39,6 +39,29 @@ builder.Services.AddOpenTelemetry()
 
 var app = builder.Build();
 
+// Global exception handler — prevents stack trace leaks in non-development environments
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+else
+{
+    app.UseExceptionHandler(errorApp =>
+    {
+        errorApp.Run(async context =>
+        {
+            context.Response.StatusCode = 500;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new
+            {
+                title = "Internal Server Error",
+                status = 500,
+                detail = "An unexpected error occurred. Please try again later."
+            });
+        });
+    });
+}
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
@@ -69,7 +92,7 @@ app.MapPost("/api/marketdata", async (
         var json = JsonSerializer.Serialize(marketData);
         
         var messageId = await db.StreamAddAsync(
-            "marketdata:stream",
+            StreamConstants.MarketDataStream,
             "data",
             json,
             maxLength: 10000,

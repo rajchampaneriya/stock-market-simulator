@@ -33,7 +33,7 @@ export default function () {
   });
 
   const res = http.post('http://localhost:5001/api/marketdata', payload, {
-    headers: { 'Content-Type': application/json' },
+    headers: { 'Content-Type': 'application/json' },
   });
 
   const success = check(res, {

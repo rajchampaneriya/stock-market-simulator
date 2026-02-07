@@ -23,7 +23,7 @@ export const options = {
 
 const symbols = [
   'NIFTY50', 'BANKNIFTY', 'RELIANCE', 'TCS', 'INFY', 'HDFC', 'ICICI',
-  'SBIN', 'BHARTIARTL', 'ITC', KOTAKBANK', 'LT', 'HCLTECH', 'AXISBANK',
+  'SBIN', 'BHARTIARTL', 'ITC', 'KOTAKBANK', 'LT', 'HCLTECH', 'AXISBANK',
   'WIPRO', 'MARUTI', 'SUNPHARMA', 'TATASTEEL', 'ULTRACEMCO', 'TITAN'
 ];
 

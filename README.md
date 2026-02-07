@@ -9,6 +9,8 @@ A production-grade real-time streaming system that simulates financial market da
 
 ![Watchlist and candlestick chart](reference-docs/images/frontend-dashboard-2.png)
 ![Real-time price updates](reference-docs/images/frontend-dashboard-3.png)
+![Test results showing 103 passing tests](reference-docs/images/Screenshot%202026-02-07%20at%206.45.48%20AM.png)
+![.NET Aspire dashboard with all services running](reference-docs/images/Screenshot%202026-02-07%20at%207.08.06%20AM.png)
 
 </details>
 

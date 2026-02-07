@@ -1,9 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using Shared.Contracts;
-using System.Text;
-using System.Text.Json;
-using System.Threading.Channels;
 using Broker.Service.Services;
+using static Broker.Service.Services.SseFormatter;
 
 namespace Broker.Service.Controllers;
 
@@ -11,19 +8,16 @@ namespace Broker.Service.Controllers;
 [Route("api/marketdata")]
 public class SseController : ControllerBase
 {
-    private readonly Channel<MarketDataEvent> _channel;
-    private readonly Channel<CandlestickEvent> _candleChannel;
+    private readonly SseClientManager _clientManager;
     private readonly CandlestickHistory _history;
     private readonly ILogger<SseController> _logger;
 
     public SseController(
-        Channel<MarketDataEvent> channel,
-        Channel<CandlestickEvent> candleChannel,
+        SseClientManager clientManager,
         CandlestickHistory history,
         ILogger<SseController> logger)
     {
-        _channel = channel;
-        _candleChannel = candleChannel;
+        _clientManager = clientManager;
         _history = history;
         _logger = logger;
     }
@@ -67,97 +61,85 @@ public class SseController : ControllerBase
         string clientId,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        // Send connection confirmation event
-        yield return FormatSseEvent(
-            "connected",
-            new { clientId, timestamp = DateTime.UtcNow },
-            $"{clientId}-0");
+        // Register per-client channels for fan-out broadcasting
+        var (tickChannel, candleChannel) = _clientManager.Register(clientId);
 
-        // Replay historical candles so chart has density immediately
-        var allHistory = _history.GetAllHistory();
-        var historyCount = 0;
-        foreach (var (symbol, candles) in allHistory)
+        try
         {
-            foreach (var candle in candles)
+            // Send connection confirmation event
+            yield return FormatSseEvent(
+                "connected",
+                new { clientId, timestamp = DateTime.UtcNow },
+                $"{clientId}-0");
+
+            // Replay historical candles so chart has density immediately
+            var allHistory = _history.GetAllHistory();
+            var historyCount = 0;
+            foreach (var (symbol, candles) in allHistory)
             {
-                yield return FormatSseEvent(
-                    "candlestick",
-                    candle,
-                    $"{clientId}-h{historyCount++}");
+                foreach (var candle in candles)
+                {
+                    yield return FormatSseEvent(
+                        "candlestick",
+                        candle,
+                        $"{clientId}-h{historyCount++}");
+                }
+            }
+
+            if (historyCount > 0)
+            {
+                _logger.LogInformation(
+                    "Sent {Count} historical candles to client {ClientId}",
+                    historyCount, clientId);
+            }
+
+            var tickReader = tickChannel.Reader;
+            var candleReader = candleChannel.Reader;
+            var eventId = 1L;
+            var lastHeartbeat = DateTime.UtcNow;
+
+            // Multiplex both tick and candle channels into a single SSE stream.
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var tickWait = tickReader.WaitToReadAsync(cancellationToken).AsTask();
+                var candleWait = candleReader.WaitToReadAsync(cancellationToken).AsTask();
+
+                await Task.WhenAny(tickWait, candleWait);
+
+                // Drain all available ticks
+                while (tickReader.TryRead(out var marketData))
+                {
+                    yield return FormatSseEvent(
+                        "marketdata",
+                        marketData,
+                        $"{clientId}-{eventId++}");
+                }
+
+                // Drain all available candle events
+                while (candleReader.TryRead(out var candleEvent))
+                {
+                    yield return FormatSseEvent(
+                        "candlestick",
+                        candleEvent,
+                        $"{clientId}-c{eventId++}");
+                }
+
+                // Send heartbeat every 15 seconds
+                if ((DateTime.UtcNow - lastHeartbeat).TotalSeconds >= 15)
+                {
+                    yield return FormatSseEvent(
+                        "heartbeat",
+                        new { timestamp = DateTime.UtcNow },
+                        $"{clientId}-heartbeat");
+                    lastHeartbeat = DateTime.UtcNow;
+                }
             }
         }
-
-        if (historyCount > 0)
+        finally
         {
-            _logger.LogInformation(
-                "Sent {Count} historical candles to client {ClientId}",
-                historyCount, clientId);
-        }
-
-        var tickReader = _channel.Reader;
-        var candleReader = _candleChannel.Reader;
-        var eventId = 1L;
-        var lastHeartbeat = DateTime.UtcNow;
-
-        // Multiplex both tick and candle channels into a single SSE stream.
-        // We use Task.WhenAny on WaitToReadAsync to service whichever channel
-        // has data first — no busy-wait spin.
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            var tickWait = tickReader.WaitToReadAsync(cancellationToken).AsTask();
-            var candleWait = candleReader.WaitToReadAsync(cancellationToken).AsTask();
-
-            await Task.WhenAny(tickWait, candleWait);
-
-            // Drain all available ticks
-            while (tickReader.TryRead(out var marketData))
-            {
-                yield return FormatSseEvent(
-                    "marketdata",
-                    marketData,
-                    $"{clientId}-{eventId++}");
-            }
-
-            // Drain all available candle events
-            while (candleReader.TryRead(out var candleEvent))
-            {
-                yield return FormatSseEvent(
-                    "candlestick",
-                    candleEvent,
-                    $"{clientId}-c{eventId++}");
-            }
-
-            // Send heartbeat every 15 seconds
-            if ((DateTime.UtcNow - lastHeartbeat).TotalSeconds >= 15)
-            {
-                yield return FormatSseEvent(
-                    "heartbeat",
-                    new { timestamp = DateTime.UtcNow },
-                    $"{clientId}-heartbeat");
-                lastHeartbeat = DateTime.UtcNow;
-            }
+            _clientManager.Unregister(clientId);
         }
     }
 
-    private static readonly JsonSerializerOptions CamelCaseOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-
-    private static string FormatSseEvent(string eventType, object data, string? id = null)
-    {
-        var sb = new StringBuilder();
-        
-        if (!string.IsNullOrEmpty(id))
-        {
-            sb.AppendLine($"id: {id}");
-        }
-        
-        sb.AppendLine($"event: {eventType}");
-        sb.AppendLine($"data: {JsonSerializer.Serialize(data, CamelCaseOptions)}");
-        sb.AppendLine(); // Empty line signals end of event
-        
-        return sb.ToString();
-    }
 }
 
