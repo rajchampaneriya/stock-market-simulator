@@ -14,7 +14,7 @@ public class RedisMonitoringController : ControllerBase
 {
     private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<RedisMonitoringController> _logger;
-    private const string StreamKey = "marketdata:stream";
+    private const string StreamKey = StreamConstants.MarketDataStream;
 
     public RedisMonitoringController(
         IConnectionMultiplexer redis,

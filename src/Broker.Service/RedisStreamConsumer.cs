@@ -2,7 +2,6 @@ using Broker.Service.Services;
 using Shared.Contracts;
 using StackExchange.Redis;
 using System.Text.Json;
-using System.Threading.Channels;
 
 namespace Broker.Service;
 
@@ -10,7 +9,6 @@ public class RedisStreamConsumer : BackgroundService
 {
     private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<RedisStreamConsumer> _logger;
-    private readonly Channel<MarketDataEvent> _channel;
     private readonly TickBroadcaster _broadcaster;
     private readonly string _consumerName;
     
@@ -18,19 +16,17 @@ public class RedisStreamConsumer : BackgroundService
     // For multiple broker instances writing to shared cache, use ConcurrentDictionary
     private readonly Dictionary<string, Security> _cache = new();
 
-    private const string StreamKey = "marketdata:stream";
-    private const string ConsumerGroup = "brokers";
+    private const string StreamKey = StreamConstants.MarketDataStream;
+    private const string ConsumerGroup = StreamConstants.BrokerConsumerGroup;
 
     public RedisStreamConsumer(
         IConnectionMultiplexer redis,
         ILogger<RedisStreamConsumer> logger,
-        Channel<MarketDataEvent> channel,
         TickBroadcaster broadcaster,
         IConfiguration configuration)
     {
         _redis = redis;
         _logger = logger;
-        _channel = channel;
         _broadcaster = broadcaster;
         
         // Generate unique consumer name for horizontal scaling

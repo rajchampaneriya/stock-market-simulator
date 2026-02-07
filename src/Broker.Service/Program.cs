@@ -1,11 +1,11 @@
 using Broker.Service;
 using Broker.Service.Services;
 using StackExchange.Redis;
-using System.Text;
 using System.Threading.Channels;
 using Shared.Contracts;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
+using static Broker.Service.Services.SseFormatter;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,17 +13,7 @@ var builder = WebApplication.CreateBuilder(args);
 // The "cache" name matches the resource name in AppHost
 builder.AddRedisClient("cache");
 
-// Channel for SSE tick broadcast with bounded capacity to prevent memory issues
-var channelCapacity = builder.Configuration.GetValue<int>("Channel:Capacity", 1000);
-builder.Services.AddSingleton(Channel.CreateBounded<MarketDataEvent>(
-    new BoundedChannelOptions(channelCapacity) 
-    { 
-        SingleReader = false, 
-        SingleWriter = false,
-        FullMode = BoundedChannelFullMode.DropOldest // Drop oldest messages on backpressure
-    }));
-
-// Channel for candlestick events (aggregator → SSE)
+// Channel for candlestick events (aggregator → legacy consumers)
 builder.Services.AddSingleton(Channel.CreateBounded<CandlestickEvent>(
     new BoundedChannelOptions(500)
     {
@@ -35,7 +25,11 @@ builder.Services.AddSingleton(Channel.CreateBounded<CandlestickEvent>(
 // Aggregator's dedicated tick channel — receives a copy of every tick
 builder.Services.AddSingleton<AggregatorTickChannel>();
 
-// Tick broadcaster — fans out each tick to SSE channel + aggregator channel
+// Per-client SSE channel manager — each connected client gets its own bounded channels
+// Fixes the multi-client bug where shared channel caused only one client to receive each tick
+builder.Services.AddSingleton<SseClientManager>();
+
+// Tick broadcaster — fans out each tick to all SSE clients + aggregator channel
 builder.Services.AddSingleton<TickBroadcaster>();
 
 // Event buffer for SSE replay support (keeps last 1000 events in memory)
@@ -107,6 +101,29 @@ builder.Services.AddOpenTelemetry()
 
 var app = builder.Build();
 
+// Global exception handler — prevents stack trace leaks in non-development environments
+if (app.Environment.IsDevelopment())
+{
+    app.UseDeveloperExceptionPage();
+}
+else
+{
+    app.UseExceptionHandler(errorApp =>
+    {
+        errorApp.Run(async context =>
+        {
+            context.Response.StatusCode = 500;
+            context.Response.ContentType = "application/json";
+            await context.Response.WriteAsJsonAsync(new
+            {
+                title = "Internal Server Error",
+                status = 500,
+                detail = "An unexpected error occurred. Please try again later."
+            });
+        });
+    });
+}
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -120,9 +137,9 @@ app.MapHealthChecks("/health");
 app.MapControllers();
 
 // Minimal API endpoint for SSE - demonstrates clean .NET 10 streaming pattern
-// Uses IAsyncEnumerable for composable, efficient event streaming
+// Uses per-client channels via SseClientManager for proper fan-out
 app.MapGet("/api/marketdata/stream-minimal", async (
-    Channel<MarketDataEvent> channel,
+    SseClientManager clientManager,
     ILogger<Program> logger,
     HttpResponse response,
     CancellationToken cancellationToken) =>
@@ -135,14 +152,16 @@ app.MapGet("/api/marketdata/stream-minimal", async (
     response.Headers.Append("Cache-Control", "no-cache");
     response.Headers.Append("Connection", "keep-alive");
 
+    var (tickChannel, _) = clientManager.Register(clientId);
+
     try
     {
         // Send connection event
         await response.WriteAsync(FormatSseEvent("connected", new { clientId, timestamp = DateTime.UtcNow }), cancellationToken);
         await response.Body.FlushAsync(cancellationToken);
 
-        // Stream market data events using IAsyncEnumerable
-        await foreach (var data in channel.Reader.ReadAllAsync(cancellationToken))
+        // Stream market data events from per-client channel
+        await foreach (var data in tickChannel.Reader.ReadAllAsync(cancellationToken))
         {
             await response.WriteAsync(FormatSseEvent("marketdata", data), cancellationToken);
             await response.Body.FlushAsync(cancellationToken);
@@ -152,28 +171,12 @@ app.MapGet("/api/marketdata/stream-minimal", async (
     {
         logger.LogInformation("Minimal API: Client {ClientId} disconnected", clientId);
     }
+    finally
+    {
+        clientManager.Unregister(clientId);
+    }
 })
 .WithName("StreamMarketDataMinimal")
 .Produces(StatusCodes.Status200OK, contentType: "text/event-stream");
 
 app.Run();
-
-static string FormatSseEvent(string eventType, object data, string? id = null)
-{
-    var options = new System.Text.Json.JsonSerializerOptions
-    {
-        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
-    };
-    var sb = new StringBuilder();
-    
-    if (!string.IsNullOrEmpty(id))
-    {
-        sb.AppendLine($"id: {id}");
-    }
-    
-    sb.AppendLine($"event: {eventType}");
-    sb.AppendLine($"data: {System.Text.Json.JsonSerializer.Serialize(data, options)}");
-    sb.AppendLine();
-    
-    return sb.ToString();
-}
