@@ -78,11 +78,13 @@ Results are saved to `/tmp/latency-results.txt`
 
 ## Running Complete Performance Suite
 
-1. Start all services:
-   ```bash
-   cd /home/runner/work/stock-market-simulator/stock-market-simulator
-   ./run-services.sh
-   ```
+1. Start all services with Aspire:
+  ```bash
+  cd ../../src/stock-market-simulator.AppHost
+  dotnet run
+  ```
+
+  Ensure Docker Desktop is running so Aspire can provision Redis.
 
 2. In separate terminals, run:
    ```bash

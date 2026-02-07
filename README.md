@@ -2,6 +2,16 @@
 
 A production-grade real-time streaming system that simulates financial market data using event-driven architecture. Built with .NET 10, Redis Streams, and React, this project demonstrates scalable patterns for high-frequency data distribution.
 
+![Stock Market Simulator dashboard](reference-docs/images/frontend-dashboard.png)
+
+Additional screenshots and assets:
+
+![Market dashboard - view 2](reference-docs/images/frontend-dashboard-2.png)
+![Market dashboard - view 3](reference-docs/images/frontend-dashboard-3.png)
+
+**Streaming flow overview: Market Simulator → Broker → Web App**
+![Streaming flow overview](reference-docs/images/train-simulator.svg)
+
 ## Features
 
 **Real-Time Data Pipeline**
@@ -52,16 +62,12 @@ The system consists of five services orchestrated by .NET Aspire:
 ### Run All Services
 
 ```bash
-# Start Redis
-docker run -d --name redis -p 6379:6379 redis:latest
-
-# Option 1: Use helper script
-./run-services.sh
-
-# Option 2: Manual start with Aspire (recommended)
+# Run all services with Aspire
 cd src/stock-market-simulator.AppHost
 dotnet run
 ```
+
+Aspire provisions Redis automatically. Ensure Docker Desktop is running.
 
 The system will start in sequence:
 1. Redis (port 6379)

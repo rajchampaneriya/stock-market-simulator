@@ -385,10 +385,15 @@ data: <JSON>
 ### Starting the System
 
 ```bash
-# Option 1: Using the helper script
-./run-services.sh
+# Start all services with Aspire
+cd src/stock-market-simulator.AppHost
+dotnet run
+```
 
-# Option 2: Manual start
+Aspire provisions Redis automatically. Ensure Docker Desktop is running.
+
+**Optional: Manual start (advanced troubleshooting)**
+```bash
 # Terminal 1: Start Redis and Ingestion API
 cd src/MarketIngestion.Api
 dotnet run --urls "http://localhost:5001"

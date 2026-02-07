@@ -13,20 +13,18 @@
 - Aspire orchestration code structure fully preserved
 
 ### ⚠️ Known Limitation
-- Aspire Dashboard unavailable (DCP binaries not available for .NET 10 + Aspire 9.5.2)
-- Workaround: Use `./run-services.sh` to run services manually
+- Aspire Dashboard availability depends on DCP binaries for the local environment
+- Core services still run normally via the Aspire AppHost
 
 ## How to Run
 
 ```bash
-# Start infrastructure and build
-./run-services.sh
-
-# Start services in separate terminals
-cd src/MarketIngestion.Api && dotnet run --urls "http://localhost:5001"
-cd src/Broker.Service && dotnet run --urls "http://localhost:5002"  
-cd src/MarketSimulator && dotnet run
+# Start all services with Aspire
+cd src/stock-market-simulator.AppHost
+dotnet run
 ```
+
+Ensure Docker Desktop is running so Aspire can provision Redis.
 
 ## Documentation
 
