@@ -7,11 +7,12 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        // Aspire sets services__broker_service__https__0 or services__broker_service__http__0
-        // Note: hyphens in service names become underscores in env vars
-        target: process.env['services__broker-service__https__0'] || 
+        // VITE_BROKER_URL is set by Aspire via .WithEnvironment() in AppHost.cs
+        // services__broker-service__* vars are set via .WithReference() in AppHost.cs
+        target: process.env['VITE_BROKER_URL'] ||
+                process.env['services__broker-service__https__0'] || 
                 process.env['services__broker-service__http__0'] || 
-                'https://localhost:50723', // Current broker service port
+                'http://localhost:5046', // Fallback to broker service default http port
         changeOrigin: true,
         secure: false, // Allow self-signed certificates in development
         rewrite: (path) => path, // Keep /api prefix

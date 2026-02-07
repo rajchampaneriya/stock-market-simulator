@@ -3,6 +3,19 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/main/VisualStudio.gitignore
 
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Development archives (not for public release)
+.archive/
+
+# JetBrains IDEs
+.idea/
+*.iml
+*.iws
+
 # User-specific files
 *.rsuser
 *.suo

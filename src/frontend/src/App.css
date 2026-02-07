@@ -1,19 +1,158 @@
-#root {
-  max-width: 100%;
-  margin: 0 auto;
-  padding: 0;
-}
+/* === Animations === */
 
 @keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes priceFlashGreen {
+  0% { background-color: rgba(38, 166, 154, 0.3); }
+  100% { background-color: transparent; }
+}
+
+@keyframes priceFlashRed {
+  0% { background-color: rgba(239, 83, 80, 0.3); }
+  100% { background-color: transparent; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes livePulse {
   0%, 100% {
-    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(38, 166, 154, 0.5);
   }
   50% {
-    opacity: 0.7;
+    box-shadow: 0 0 0 4px rgba(38, 166, 154, 0);
   }
 }
 
-.price-update {
-  animation: pulse 0.5s ease-in-out;
+@keyframes tickerScroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
 }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* === Utility Classes === */
+
+.price-update {
+  animation: pulse 0.3s ease-in-out;
+}
+
+.price-flash-green {
+  animation: priceFlashGreen 0.6s ease-out;
+}
+
+.price-flash-red {
+  animation: priceFlashRed 0.6s ease-out;
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.slide-in {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.live-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #26a69a;
+  animation: livePulse 2s infinite;
+  display: inline-block;
+}
+
+.live-indicator.disconnected {
+  background-color: #ef5350;
+  animation: none;
+}
+
+/* === Chart Crosshair === */
+
+.chart-crosshair {
+  cursor: crosshair;
+}
+
+.chart-tooltip {
+  background: rgba(42, 46, 57, 0.95);
+  border: 1px solid #363a45;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #d1d4dc;
+  pointer-events: none;
+  white-space: nowrap;
+  font-family: 'Inter', sans-serif;
+}
+
+/* === Watchlist === */
+
+.watchlist-item {
+  transition: background-color 0.15s ease;
+  cursor: pointer;
+  border-bottom: 1px solid #2a2e39;
+}
+
+.watchlist-item:hover {
+  background-color: rgba(41, 98, 255, 0.06);
+}
+
+.watchlist-item.selected {
+  background-color: rgba(41, 98, 255, 0.1);
+  border-left: 2px solid #2962ff;
+}
+
+/* === Status Bar === */
+
+.status-bar {
+  background-color: #1e222d;
+  border-top: 1px solid #2a2e39;
+  padding: 4px 16px;
+  font-size: 11px;
+  color: #787b86;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* === Ticker Strip === */
+
+.ticker-strip {
+  background-color: #1e222d;
+  border-bottom: 1px solid #2a2e39;
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 6px 0;
+}
+
+/* === Architecture Badge === */
+
+.arch-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: rgba(41, 98, 255, 0.1);
+  border: 1px solid rgba(41, 98, 255, 0.2);
+  font-size: 10px;
+  font-weight: 500;
+  color: #5b8def;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
 

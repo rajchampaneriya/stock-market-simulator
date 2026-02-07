@@ -1,5 +1,8 @@
-import type { MarketDataEvent } from '../types';
+import type { CandlestickEvent } from '../types';
 
+/**
+ * OHLCV data structure used by the CandlestickChart component.
+ */
 export interface OHLC {
   timestamp: Date;
   open: number;
@@ -9,53 +12,114 @@ export interface OHLC {
   volume: number;
 }
 
+/**
+ * Manages a rolling window of 1-minute candles received from the backend
+ * CandlestickAggregator.
+ *
+ * The backend sends two kinds of candlestick events:
+ *  - In-progress (isComplete === false): updates the current (latest) candle
+ *  - Completed   (isComplete === true):  finalises a candle and locks it in history
+ *
+ * This class simply maps those events into the OHLC[] array consumed by the chart.
+ */
 export class PriceAggregator {
-  private tickWindow: MarketDataEvent[] = [];
-  private windowSize: number;
-  private ohlcHistory: OHLC[] = [];
-  private maxHistory: number;
+  private completedCandles: OHLC[] = [];
+  private currentCandle: OHLC | null = null;
+  private currentIntervalKey: string | null = null;
+  private readonly maxHistory: number;
+  private seenIntervals: Set<number> = new Set(); // track by timestamp ms to avoid dupes
 
-  constructor(windowSizeMs: number = 60000, maxHistory: number = 30) {
-    this.windowSize = windowSizeMs;
+  constructor(_windowSizeMs: number = 60000, maxHistory: number = 60) {
     this.maxHistory = maxHistory;
   }
 
-  addTick(tick: MarketDataEvent): OHLC | null {
-    this.tickWindow.push(tick);
-    
-    const now = new Date(tick.timestamp).getTime();
-    const oldestAllowed = now - this.windowSize;
-    
-    this.tickWindow = this.tickWindow.filter(
-      t => new Date(t.timestamp).getTime() > oldestAllowed
-    );
+  /**
+   * Processes a backend CandlestickEvent. Returns the full OHLC history
+   * (completed candles + the in-progress candle) or null if nothing to show yet.
+   */
+  addCandlestickEvent(event: CandlestickEvent): OHLC[] | null {
+    const intervalKey = event.intervalStart;
+    const intervalMs = new Date(intervalKey).getTime();
 
-    if (this.tickWindow.length < 2) return null;
+    if (event.isComplete) {
+      // Finalise this candle
+      const candle: OHLC = {
+        timestamp: new Date(event.intervalStart),
+        open: event.open,
+        high: event.high,
+        low: event.low,
+        close: event.close,
+        volume: event.volume,
+      };
 
-    const ohlc: OHLC = {
-      timestamp: new Date(tick.timestamp),
-      open: this.tickWindow[0].price,
-      high: Math.max(...this.tickWindow.map(t => t.price)),
-      low: Math.min(...this.tickWindow.map(t => t.price)),
-      close: tick.price,
-      volume: this.tickWindow.reduce((sum, t) => sum + t.volume, 0),
-    };
+      if (this.seenIntervals.has(intervalMs)) {
+        // Update existing candle in place
+        const idx = this.completedCandles.findIndex(
+          c => c.timestamp.getTime() === intervalMs
+        );
+        if (idx >= 0) {
+          this.completedCandles[idx] = candle;
+        }
+      } else {
+        this.seenIntervals.add(intervalMs);
+        // Insert in sorted position (historical candles may arrive before live ones)
+        const insertIdx = this.completedCandles.findIndex(
+          c => c.timestamp.getTime() > intervalMs
+        );
+        if (insertIdx === -1) {
+          this.completedCandles.push(candle);
+        } else {
+          this.completedCandles.splice(insertIdx, 0, candle);
+        }
+      }
 
-    this.ohlcHistory.push(ohlc);
-    
-    if (this.ohlcHistory.length > this.maxHistory) {
-      this.ohlcHistory.shift();
+      // Trim history
+      if (this.completedCandles.length > this.maxHistory) {
+        this.completedCandles.shift();
+      }
+
+      // Clear current candle — next in-progress event will start a new one
+      this.currentCandle = null;
+      this.currentIntervalKey = null;
+    } else {
+      // In-progress update — update (or create) the current candle
+      if (this.currentIntervalKey !== intervalKey) {
+        // New interval started
+        this.currentIntervalKey = intervalKey;
+      }
+      this.currentCandle = {
+        timestamp: new Date(event.intervalStart),
+        open: event.open,
+        high: event.high,
+        low: event.low,
+        close: event.close,
+        volume: event.volume,
+      };
     }
 
-    return ohlc;
+    return this.getHistory();
+  }
+
+  /**
+   * Legacy method — kept for backward compatibility but now a no-op.
+   * Tick data is used only by watchlist/banner, not by the chart.
+   */
+  addTick(): OHLC | null {
+    return null;
   }
 
   getHistory(): OHLC[] {
-    return [...this.ohlcHistory];
+    const result = [...this.completedCandles];
+    if (this.currentCandle) {
+      result.push(this.currentCandle);
+    }
+    return result;
   }
 
   clear(): void {
-    this.tickWindow = [];
-    this.ohlcHistory = [];
+    this.completedCandles = [];
+    this.currentCandle = null;
+    this.currentIntervalKey = null;
+    this.seenIntervals.clear();
   }
 }
