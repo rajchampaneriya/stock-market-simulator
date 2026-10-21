@@ -17,7 +17,7 @@ public sealed class StrategyRun
     private readonly VolatilitySurface _surface;
     private readonly IReadOnlyList<ICoachRule> _rules;
     private readonly ExecutionAccounting _accounting = new();
-    private readonly IndianFeeSchedule _fees = new();
+    private readonly IndianFeeSchedule _fees;
 
     private readonly List<OptionLeg> _legs = new();
     private readonly List<FuturesPosition> _futures = new();
@@ -48,6 +48,7 @@ public sealed class StrategyRun
     public StrategyRun(StrategyConfig config, IOptionPricer pricer, IEnumerable<ICoachRule>? rules = null)
     {
         _config = config;
+        _fees = IndianFeeSchedule.ForBroker(config.BrokerProfile);
         _pricer = pricer;
         _surface = new VolatilitySurface(config.BaseIv, config.SkewSlope);
         _rules = rules?.ToList() ?? [];
