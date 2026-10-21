@@ -17,11 +17,15 @@ public sealed class OptionsSessionsController : ControllerBase
 
     [HttpPost]
     public IActionResult Create([FromBody] CreateRequest? request) {
-        var session = _sessions.Create(request?.Seed);
-        return session is null
-            ? StatusCode(429, new { message = "Session capacity reached." })
-            : CreatedAtAction(nameof(State), new { id = session.Value.Id },
-                new { sessionId = session.Value.Id, snapshot = session.Value.Engine.CurrentDto() });
+        try {
+            var session = _sessions.Create(request?.Seed);
+            return session is null
+                ? StatusCode(429, new { message = "Session capacity reached." })
+                : CreatedAtAction(nameof(State), new { id = session.Value.Id },
+                    new { sessionId = session.Value.Id, snapshot = session.Value.Engine.CurrentDto() });
+        } catch (InvalidOperationException ex) {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpGet("{id:guid}")]
@@ -56,10 +60,14 @@ public sealed class OptionsSessionsController : ControllerBase
     private IActionResult Execute(Guid id, Func<OptionsRunEngine, OptionsSnapshotDto?> action) {
         var session = _sessions.Get(id);
         if (session is null) return NotFound();
-        var dto = action(session.Value.Engine);
-        if (dto is null) return NotFound();
-        session.Value.Stream.Broadcast(dto);
-        return Ok(dto);
+        try {
+            var dto = action(session.Value.Engine);
+            if (dto is null) return NotFound();
+            session.Value.Stream.Broadcast(dto);
+            return Ok(dto);
+        } catch (InvalidOperationException ex) {
+            return Conflict(new { message = ex.Message });
+        }
     }
 
     [HttpGet("{id:guid}/stream")]
