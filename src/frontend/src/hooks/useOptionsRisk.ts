@@ -6,6 +6,8 @@ interface UseOptionsRiskResult {
   configError: boolean;
   snapshot: OptionsSnapshot | null;
   connected: boolean;
+  sessionId: string | null;
+  actionError: string | null;
   start: (seed?: number) => void;
   pause: () => void;
   resume: () => void;
@@ -23,35 +25,46 @@ export function useOptionsRisk(brokerUrl: string): UseOptionsRiskResult {
   const [configError, setConfigError] = useState(false);
   const [snapshot, setSnapshot] = useState<OptionsSnapshot | null>(null);
   const [connected, setConnected] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const broker = brokerUrl || '';
   const esRef = useRef<EventSource | null>(null);
   const sessionRef = useRef<string | null>(null);
 
   const post = useCallback(
     (path: string, body?: unknown) =>
-      fetch(`${broker}/api/options/sessions/${sessionRef.current}/${path}`, {
+      sessionRef.current ? fetch(`${broker}/api/options/sessions/${sessionRef.current}/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
       })
-        .then((r) => (r.ok ? r.json() : null))
+        .then(async (r) => {
+          if (!r.ok) throw new Error(`Action rejected (HTTP ${r.status})`);
+          return r.json();
+        })
         .then((d) => {
           if (d) setSnapshot(d);
         })
-        .catch(() => undefined),
+        .catch((e: unknown) => { setActionError(e instanceof Error ? e.message : 'Action failed'); }),
+      : Promise.resolve(),
     [broker],
   );
 
   const start = useCallback(async (seed?: number) => {
     try {
+      setActionError(null);
       const response = await fetch(`${broker}/api/options/sessions`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ seed }),
       });
-      if (!response.ok) return;
+      if (!response.ok) throw new Error(`Unable to start session (HTTP ${response.status})`);
       const data = await response.json();
       esRef.current?.close();
+      if (sessionRef.current) {
+        void fetch(`${broker}/api/options/sessions/${sessionRef.current}`, { method: 'DELETE' });
+      }
       sessionRef.current = data.sessionId;
+      setSessionId(data.sessionId);
       setSnapshot(data.snapshot);
       const es = new EventSource(`${broker}/api/options/sessions/${data.sessionId}/stream`);
       esRef.current = es;
@@ -59,7 +72,7 @@ export function useOptionsRisk(brokerUrl: string): UseOptionsRiskResult {
         try { setSnapshot(JSON.parse((event as MessageEvent).data)); setConnected(true); } catch { /* malformed frame */ }
       });
       es.onerror = () => setConnected(false);
-    } catch { setConnected(false); }
+    } catch (e) { setConnected(false); setActionError(e instanceof Error ? e.message : 'Start failed'); }
   }, [broker]);
   const pause = useCallback(() => post('pause'), [post]);
   const resume = useCallback(() => post('resume'), [post]);
@@ -89,6 +102,8 @@ export function useOptionsRisk(brokerUrl: string): UseOptionsRiskResult {
     configError,
     snapshot,
     connected,
+    sessionId,
+    actionError,
     start,
     pause,
     resume,
