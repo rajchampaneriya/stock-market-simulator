@@ -191,7 +191,7 @@ export function OptionsRisk() {
               <CoachPanel snapshot={snapshot} onApply={applySuggestion} onIgnore={ignoreSuggestion} />
             </CardContent>
           </Card>
-          <MonteCarloPanel brokerUrl={brokerUrl} sessionId={sessionId} />
+          <MonteCarloPanel brokerUrl={brokerUrl} sessionId={sessionId} tickIndex={snapshot.tickIndex} />
         </>
       )}
 
