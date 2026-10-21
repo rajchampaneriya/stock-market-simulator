@@ -6,7 +6,11 @@ import type { RedisStreamInfo } from '../types';
  * retry twice with a small bounded delay before surfacing the real error.
  */
 export class RedisMonitoringService {
-  constructor(private readonly brokerUrl: string) {}
+  private readonly brokerUrl: string;
+
+  constructor(brokerUrl: string) {
+    this.brokerUrl = brokerUrl;
+  }
 
   async fetchStreamsInfo(): Promise<RedisStreamInfo[]> {
     const url = `${this.brokerUrl}/api/redis/streams/info`;
