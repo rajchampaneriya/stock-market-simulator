@@ -34,6 +34,7 @@ public sealed class OptionsRiskSettings
     public double SpikeMaxMagnitude { get; set; } = 0.03;
     public double SpikeIvJumpPerPercent { get; set; } = 0.30;
     public double IvDecayPerTick { get; set; } = 0.97;
+    public double SpikeRetentionPerTick { get; set; } = 0.995;
     public double IvMultiplierCap { get; set; } = 3.0;
     public double DeltaHedgeThresholdLots { get; set; } = 0.75;
     public double LegStopMultiple { get; set; } = 2.0;
@@ -65,6 +66,7 @@ public sealed class OptionsRiskSettings
         SpikeMaxMagnitude = SpikeMaxMagnitude,
         SpikeIvJumpPerPercent = SpikeIvJumpPerPercent,
         IvDecayPerTick = IvDecayPerTick,
+        SpikeRetentionPerTick = SpikeRetentionPerTick,
         IvMultiplierCap = IvMultiplierCap,
         DeltaHedgeThresholdLots = DeltaHedgeThresholdLots,
         LegStopMultiple = LegStopMultiple,
