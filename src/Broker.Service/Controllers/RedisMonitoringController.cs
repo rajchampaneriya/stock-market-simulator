@@ -31,10 +31,16 @@ public class RedisMonitoringController : ControllerBase
     [HttpGet("streams/info")]
     [ProducesResponseType(typeof(List<RedisStreamInfo>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<IActionResult> GetStreamsInfo()
     {
         try
         {
+            // Aspire may start the Broker before Redis has finished accepting commands.
+            // Fail explicitly, allowing the monitoring UI to retry a transient outage.
+            if (!_redis.IsConnected)
+                return RedisUnavailable();
+
             var db = _redis.GetDatabase();
             var streamInfoList = new List<RedisStreamInfo>();
 
@@ -51,14 +57,27 @@ public class RedisMonitoringController : ControllerBase
         }
         catch (RedisConnectionException ex)
         {
-            _logger.LogError(ex, "Redis connection failed while fetching stream info");
-            return StatusCode(503, new { error = "Unable to connect to Redis" });
+            _logger.LogWarning(ex, "Redis connection unavailable while reading stream info");
+            return RedisUnavailable();
+        }
+        catch (RedisTimeoutException ex)
+        {
+            _logger.LogWarning(ex, "Redis timed out while reading stream info");
+            Response.Headers.RetryAfter = "2";
+            return StatusCode(503, new { code = "redis_timeout", error = "Redis request timed out", retryable = true });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error fetching stream info");
             return StatusCode(500, new { error = "Failed to fetch stream information" });
         }
+    }
+
+    private IActionResult RedisUnavailable()
+    {
+        Response.Headers.RetryAfter = "2";
+        return StatusCode(StatusCodes.Status503ServiceUnavailable,
+            new { code = "redis_unavailable", error = "Unable to connect to Redis", retryable = true });
     }
 
     /// <summary>
@@ -185,6 +204,15 @@ public class RedisMonitoringController : ControllerBase
         {
             // No consumer groups exist for this stream
             _logger.LogDebug("No consumer groups exist for stream {StreamName}", streamName);
+        }
+        catch (RedisConnectionException)
+        {
+            // Do not report a healthy stream with zero groups when Redis is offline.
+            throw;
+        }
+        catch (RedisTimeoutException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
