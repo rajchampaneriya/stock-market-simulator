@@ -13,7 +13,18 @@ public sealed record IndianFeeSchedule(
     double SebiRate = 0.000001,
     double OptionsStampBuy = 0.00003,
     double FuturesStampBuy = 0.00002,
-    double GstRate = 0.18);
+    double GstRate = 0.18)
+{
+    /// <summary>Illustrative published standard tariff profiles; not customer-specific or live.</summary>
+    public static IndianFeeSchedule ForBroker(string broker) =>
+        broker.ToLowerInvariant() switch
+        {
+            "zerodha" => new IndianFeeSchedule(),
+            "upstox" => new IndianFeeSchedule(FuturesBrokerageRate: 0.0005),
+            "angelone" => new IndianFeeSchedule(FuturesBrokerageRate: 1.0),
+            _ => throw new ArgumentException("Unsupported broker profile", nameof(broker))
+        };
+}
 
 public enum DerivativeKind { Option, Future }
 public enum TradeSide { Buy, Sell }
