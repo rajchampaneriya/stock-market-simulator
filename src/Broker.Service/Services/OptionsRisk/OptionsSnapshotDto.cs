@@ -8,7 +8,7 @@ namespace Broker.Service.Services.OptionsRisk;
 // Wire DTOs for the options simulator SSE/REST surface. Kept in Broker.Service:
 // the frontend consumes JSON, and no other service needs these shapes.
 
-public sealed record OptionsConfigDto(bool Enabled, int LotSize, double StrikeStep, double WingOffset, double Capital, double DaysToExpiry, int[] Speeds);
+public sealed record OptionsConfigDto(bool Enabled, int LotSize, double StrikeStep, double WingOffset, double Capital, double DaysToExpiry, int[] Speeds, string BrokerProfile);
 
 public sealed record LegDto(
     string Id, string Type, double Strike, string Side, int Lots,
@@ -23,7 +23,11 @@ public sealed record FuturesDto(
 public sealed record TotalsDto(
     double Realized, double Unrealized, double Net, double PremiumCollected,
     double MaxLossSoFar, double DrawdownFraction,
-    double NetDelta, double NetGamma, double NetThetaPerDay, double NetVegaPerPoint);
+    double NetDelta, double NetGamma, double NetThetaPerDay, double NetVegaPerPoint,
+    double Gross, double Fees, double Slippage, double TransactionCosts,
+    double Brokerage, double Stt, double Exchange, double Sebi, double Stamp, double Gst,
+    double MarginRequired, double MarginAvailable, double MarginUtilization,
+    double MarginStressLoss, bool MarginShortfall, string MarginMethod);
 
 public sealed record PayoffPointDto(double Spot, double Pnl);
 public sealed record SpotPointDto(int Tick, double Spot);
@@ -90,7 +94,18 @@ public static class OptionsDtoMapper
             s.Totals.Realized, s.Totals.Unrealized, s.Totals.Net,
             s.Totals.PremiumCollected, s.Totals.MaxLossSoFar, s.Totals.DrawdownFraction,
             Math.Round(s.Totals.NetGreeks.Delta, 2), Math.Round(s.Totals.NetGreeks.Gamma, 4),
-            Math.Round(s.Totals.NetGreeks.ThetaPerDay, 2), Math.Round(s.Totals.NetGreeks.VegaPerPoint, 2)),
+            Math.Round(s.Totals.NetGreeks.ThetaPerDay, 2), Math.Round(s.Totals.NetGreeks.VegaPerPoint, 2),
+            Math.Round(s.Totals.Gross, 2),
+            Math.Round(s.Totals.Costs.Total - s.Totals.Costs.Slippage, 2),
+            Math.Round(s.Totals.Costs.Slippage, 2),
+            Math.Round(s.Totals.Costs.Total, 2),
+            Math.Round(s.Totals.Costs.Brokerage, 2), Math.Round(s.Totals.Costs.Stt, 2),
+            Math.Round(s.Totals.Costs.Exchange, 2), Math.Round(s.Totals.Costs.Sebi, 2),
+            Math.Round(s.Totals.Costs.Stamp, 2), Math.Round(s.Totals.Costs.Gst, 2),
+            Math.Round(s.Totals.Margin.Required, 2), Math.Round(s.Totals.Margin.FreeCapital, 2),
+            Math.Round(s.Totals.Margin.Required / Math.Max(1, s.Totals.Margin.Required + s.Totals.Margin.FreeCapital), 4),
+            Math.Round(s.Totals.Margin.StressLoss, 2), s.Totals.Margin.MarginShortfall,
+            s.Totals.Margin.Method),
         Breakevens = s.Breakevens,
         PayoffExpiry = s.PayoffAtExpiry.Select(p => new PayoffPointDto(p.Spot, p.Pnl)).ToList(),
         PayoffToday = s.PayoffToday.Select(p => new PayoffPointDto(p.Spot, p.Pnl)).ToList(),

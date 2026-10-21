@@ -37,7 +37,18 @@ public static class RuleMath
 
     public static double FuturesLotsForDelta(CoachContext ctx, double netDelta)
     {
-        var lotDelta = ctx.Config.LotSize; // futures delta ≈ 1 per unit
-        return Math.Ceiling(Math.Abs(netDelta) / lotDelta);
+        var years = ctx.MinutesToExpiry / (ctx.Config.TradingMinutesPerDay * 252.0);
+        var lotDelta = ctx.Config.LotSize * FuturesMath.Delta(ctx.Config.RiskFreeRate, years);
+        var idealLots = Math.Abs(netDelta) / lotDelta;
+        var lower = (int)Math.Floor(idealLots);
+        var upper = lower + 1;
+        var threshold = ctx.Config.DeltaHedgeThresholdLots * ctx.Config.LotSize;
+        var lowerResidual = Math.Abs(netDelta) - lower * lotDelta;
+        var upperResidual = upper * lotDelta - Math.Abs(netDelta);
+        // Prefer the smallest hedge that satisfies the configured band;
+        // otherwise minimize the absolute residual, not blindly round up.
+        if (lower > 0 && lowerResidual <= threshold) return lower;
+        if (upperResidual <= threshold) return upper;
+        return lowerResidual <= upperResidual ? lower : upper;
     }
 }

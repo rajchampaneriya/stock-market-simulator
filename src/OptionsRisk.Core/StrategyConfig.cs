@@ -58,6 +58,9 @@ public record StrategyConfig
     /// <summary>Fraction of spike-driven IV expansion retained after each tick.</summary>
     public double IvDecayPerTick { get; init; } = 0.97;
 
+    /// <summary>Fraction of the event-driven log-price shock retained each tick.</summary>
+    public double SpikeRetentionPerTick { get; init; } = 0.995;
+
     /// <summary>Ceiling on the IV multiplier so quotes stay sane in a spike storm.</summary>
     public double IvMultiplierCap { get; init; } = 3.0;
 
@@ -81,6 +84,22 @@ public record StrategyConfig
 
     /// <summary>Auto-pause the run when a spike lands so the user must decide.</summary>
     public bool AutoPauseOnSpike { get; init; } = true;
+
+    /// <summary>Simulated option/futures minimum price increment (rupees per unit).</summary>
+    public string BrokerProfile { get; init; } = "Zerodha";
+    public double OptionTickSize { get; init; } = 0.05;
+    public double FuturesTickSize { get; init; } = 0.05;
+
+    /// <summary>Illustrative adverse fill displacement in ticks, not broker averages.</summary>
+    public double NormalOptionSlippageTicks { get; init; } = 1;
+    public double SpikeOptionSlippageTicks { get; init; } = 8;
+    public double FuturesSlippageTicks { get; init; } = 2;
+
+    /// <summary>Margin is a conservative stress proxy, not an NSE SPAN quote.</summary>
+    public double MarginStressSpotFraction { get; init; } = 0.03;
+    public double MarginStressIvMultiplier { get; init; } = 1.5;
+    public double MarginExposureRate { get; init; } = 0.02;
+    public bool EnforceEstimatedMargin { get; init; } = true;
 
     /// <summary>Seed for reproducible runs; null = random.</summary>
     public int? Seed { get; init; }

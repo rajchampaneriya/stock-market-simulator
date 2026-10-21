@@ -300,3 +300,9 @@ I've documented the architectural decisions, trade-offs, and extension points so
 Documentation and architectural refinement assisted by [GitHub Copilot](https://github.com/features/copilot).
 
 Special thanks to [Milan Jovanović Tech](https://www.youtube.com/@MilanJovanovicTech/) for sharing valuable content and keeping the community alive.
+
+### Options Selling Risk Simulator (educational)
+
+Enable `Features:EnableOptionsRisk` in the Broker Service configuration, run the Aspire AppHost, and open `/options-risk` in the React frontend. The feature includes isolated simulation sessions, NIFTY short-straddle/strangle risk, configurable illustrative Indian discount-broker fees, estimated margin, and seeded hold-versus-hedge Monte Carlo projections. No real orders are placed.
+
+See [Options simulator usage and modelling limits](reference-docs/options-risk-usage.md). **Educational only, not investment advice.**

@@ -12,6 +12,8 @@ import { NiftySpotChart } from '../components/options/NiftySpotChart';
 import { PayoffDiagram } from '../components/options/PayoffDiagram';
 import { PositionsTable } from '../components/options/PositionsTable';
 import { CoachPanel } from '../components/options/CoachPanel';
+import { CapitalCostsPanel } from '../components/options/CapitalCostsPanel';
+import { MonteCarloPanel } from '../components/options/MonteCarloPanel';
 
 const fmt = (n: number) => n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 const pnlColor = (n: number) => (n >= 0 ? '#26a69a' : '#ef5350');
@@ -30,7 +32,7 @@ const GLOSSARY: Array<[string, string]> = [
 
 export function OptionsRisk() {
   const brokerUrl = import.meta.env.DEV ? '' : (import.meta.env.VITE_BROKER_URL || 'http://localhost:5002');
-  const { config, configError, snapshot, connected, start, pause, resume, setSpeed, applySuggestion, ignoreSuggestion } =
+  const { config, configError, snapshot, connected, sessionId, actionError, start, pause, resume, setSpeed, applySuggestion, ignoreSuggestion } =
     useOptionsRisk(brokerUrl);
   const [seed, setSeed] = useState('42');
 
@@ -74,7 +76,7 @@ export function OptionsRisk() {
     <Box sx={{ p: 2, maxWidth: 1500, mx: 'auto' }}>
       <Alert severity="warning" sx={{ mb: 2 }}>
         <strong>Educational only, not investment advice.</strong> Simulated markets, Black-Scholes
-        pricing, no margin, charges or slippage. No real orders, no broker integration.
+        pricing, approximate stress margin and configurable simulated charges/slippage. No real orders or broker integration.
       </Alert>
 
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2, flexWrap: 'wrap', gap: 1 }}>
@@ -131,6 +133,8 @@ export function OptionsRisk() {
         </Stack>
       </Stack>
 
+      {actionError && <Alert severity="error" sx={{ mb: 2 }}>{actionError}</Alert>}
+
       {!snapshot && (
         <Card>
           <CardContent>
@@ -163,7 +167,9 @@ export function OptionsRisk() {
             </CardContent>
           </Card>
 
-          <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2}>
+          <CapitalCostsPanel totals={snapshot.totals} brokerProfile={config.brokerProfile} />
+
+          <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} sx={{ mt: 2 }}>
             <Card sx={{ flex: 3 }}>
               <CardContent>
                 <NiftySpotChart snapshot={snapshot} />
@@ -185,6 +191,7 @@ export function OptionsRisk() {
               <CoachPanel snapshot={snapshot} onApply={applySuggestion} onIgnore={ignoreSuggestion} />
             </CardContent>
           </Card>
+          <MonteCarloPanel brokerUrl={brokerUrl} sessionId={sessionId} tickIndex={snapshot.tickIndex} />
         </>
       )}
 

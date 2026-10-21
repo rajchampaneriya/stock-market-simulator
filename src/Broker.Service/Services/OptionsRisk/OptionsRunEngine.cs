@@ -4,6 +4,7 @@ using OptionsRisk.Core.Coach;
 using OptionsRisk.Core.Market;
 using OptionsRisk.Core.Pricing;
 using OptionsRisk.Core.Strategy;
+using OptionsRisk.Core.Simulation;
 
 namespace Broker.Service.Services.OptionsRisk;
 
@@ -22,11 +23,12 @@ public sealed class OptionsRunEngine : BackgroundService
 
     private RealisticPriceEngine _priceEngine = new();
     private SpikeGenerator _spikes = new(0, 0.01, 0.03, 0.3);
+    private EventShockOverlay _eventShock = new(0.995);
+    private IntradayPriceNormalizer _normalizer = new(25000, 0.13, 375, 1);
     private StrategyRun? _run;
     private double _ivMultiplier = 1.0;
     private int _simMinute;
     private int _speed = 1;
-    private bool _userPaused;
     private string _symbol = "OPTIONS-NIFTY";
 
     public OptionsRunEngine(OptionsRiskSettings settings, OptionsStreamManager stream, ILogger<OptionsRunEngine> logger)
@@ -52,6 +54,10 @@ public sealed class OptionsRunEngine : BackgroundService
                 MeanReversionStrength = config.MeanReversionStrength,
                 BaseVolume = 6000,
             });
+            _eventShock = new EventShockOverlay(config.SpikeRetentionPerTick);
+            _normalizer = new IntradayPriceNormalizer(config.StartingSpot,
+                config.UnderlyingAnnualVol, config.TradingMinutesPerDay,
+                config.SimMinutesPerTick, config.MeanReversionStrength);
             _spikes = new SpikeGenerator(
                 config.SpikeProbabilityPerTick, config.SpikeMinMagnitude,
                 config.SpikeMaxMagnitude, config.SpikeIvJumpPerPercent,
@@ -60,7 +66,6 @@ public sealed class OptionsRunEngine : BackgroundService
             _ivMultiplier = 1.0;
             _simMinute = 0;
             _speed = 1;
-            _userPaused = false;
 
             var snapshot = _run.Open(config.StartingSpot);
             var dto = OptionsDtoMapper.ToDto(snapshot, _speed, config.LotSize);
@@ -83,7 +88,6 @@ public sealed class OptionsRunEngine : BackgroundService
     {
         lock (_gate)
         {
-            _userPaused = true;
             _run?.Pause();
             return CurrentDto();
         }
@@ -93,7 +97,6 @@ public sealed class OptionsRunEngine : BackgroundService
     {
         lock (_gate)
         {
-            _userPaused = false;
             _run?.Resume();
             return CurrentDto();
         }
@@ -159,6 +162,14 @@ public sealed class OptionsRunEngine : BackgroundService
 
     public sealed record ApplyActionRequest(string SuggestionId);
 
+    public MonteCarloComparison? ProjectMonteCarlo(int signedLots, MonteCarloSettings settings)
+    {
+        // Snapshot consistency: no market tick or user action may mutate the
+        // positions while a counterfactual projection reads them.
+        lock (_gate)
+            return _run is null ? null : MonteCarloProjector.Compare(_run, signedLots, settings);
+    }
+
     // --- Tick loop ---
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -193,17 +204,18 @@ public sealed class OptionsRunEngine : BackgroundService
     {
         var config = _run!.Config;
         var (walkPriceDecimal, _) = _priceEngine.NextTick(_symbol);
-        var walkPrice = (double)walkPriceDecimal;
+        var walkPrice = _normalizer.Next((double)walkPriceDecimal);
 
-        var spot = walkPrice;
-        SpikeEvent? spikeEvent = null;
+        // Retain the shock in log-price space: otherwise the next base-engine
+        // tick silently erases the jump and creates an unlabelled reverse spike.
         var spike = _spikes.NextSpike();
+        var beforeShock = _eventShock.BeforeSpike(walkPrice);
+        var spot = _eventShock.Next(walkPrice, spike?.MagnitudeFraction);
+        SpikeEvent? spikeEvent = null;
         if (spike is { } s)
         {
-            var jumped = spot * (1.0 + s.MagnitudeFraction);
-            spot = Math.Round(jumped, 2);
             _ivMultiplier = Math.Min(config.IvMultiplierCap, _ivMultiplier + s.IvMultiplierJump);
-            spikeEvent = new SpikeEvent(0, _simMinute, walkPrice, spot, s.IvMultiplierJump);
+            spikeEvent = new SpikeEvent(0, _simMinute, beforeShock, spot, s.IvMultiplierJump);
         }
 
         // Vol expansion partly reverts every tick after the spike.

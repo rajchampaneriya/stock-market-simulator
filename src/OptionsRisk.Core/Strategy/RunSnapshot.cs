@@ -1,4 +1,6 @@
 using OptionsRisk.Core.Coach;
+using OptionsRisk.Core.Margin;
+using OptionsRisk.Core.Costs;
 using OptionsRisk.Core.Pricing;
 
 namespace OptionsRisk.Core.Strategy;
@@ -19,7 +21,11 @@ public sealed record PortfolioTotals
 {
     public required double Realized { get; init; }
     public required double Unrealized { get; init; }
-    public double Net => Realized + Unrealized;
+    // Realized/unrealized use executed fills (already incorporating slippage).
+    public double Gross => Realized + Unrealized + Costs.Slippage;
+    public double Net => Realized + Unrealized - (Costs.Total - Costs.Slippage);
+    public ExecutionCost Costs { get; init; } = new(0, 0, 0, 0, 0, 0, 0);
+    public MarginEstimate Margin { get; init; } = new(0, 0, 0, 0, false, "Not evaluated");
     public required double PremiumCollected { get; init; }
     /// <summary>Worst net P/L reached during the run (≤ 0).</summary>
     public required double MaxLossSoFar { get; init; }

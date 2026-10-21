@@ -1,4 +1,6 @@
 using OptionsRisk.Core.Coach;
+using OptionsRisk.Core.Costs;
+using OptionsRisk.Core.Margin;
 using OptionsRisk.Core.Pricing;
 
 namespace OptionsRisk.Core.Strategy;
@@ -14,6 +16,8 @@ public sealed class StrategyRun
     private readonly IOptionPricer _pricer;
     private readonly VolatilitySurface _surface;
     private readonly IReadOnlyList<ICoachRule> _rules;
+    private readonly ExecutionAccounting _accounting = new();
+    private readonly IndianFeeSchedule _fees;
 
     private readonly List<OptionLeg> _legs = new();
     private readonly List<FuturesPosition> _futures = new();
@@ -44,6 +48,7 @@ public sealed class StrategyRun
     public StrategyRun(StrategyConfig config, IOptionPricer pricer, IEnumerable<ICoachRule>? rules = null)
     {
         _config = config;
+        _fees = IndianFeeSchedule.ForBroker(config.BrokerProfile);
         _pricer = pricer;
         _surface = new VolatilitySurface(config.BaseIv, config.SkewSlope);
         _rules = rules?.ToList() ?? [];
@@ -83,12 +88,18 @@ public sealed class StrategyRun
                 Type = type,
                 Direction = (int)LegSide.Short,
                 QuantityLots = 1,
-                EntryPrice = quote.Price,
+                EntryPrice = SimulatedFill.Price(quote.Price, TradeSide.Sell,
+                    _config.OptionTickSize, _config.NormalOptionSlippageTicks),
                 EntryIv = iv,
                 Quote = quote,
             });
         }
 
+        foreach (var leg in _legs)
+            _accounting.Record(IndianDerivativesCosts.Calculate(DerivativeKind.Option, TradeSide.Sell,
+                leg.EntryPrice, leg.Quote.Price, leg.QuantityLots * _config.LotSize, _fees));
+        if (_config.EnforceEstimatedMargin && EstimateMargin().MarginShortfall)
+            throw new InvalidOperationException("Insufficient virtual capital for estimated opening margin.");
         _decisions.Add(new DecisionRecord(0, SimMinute, "Strategy", DescribeStrategy(), "opened"));
         Status = RunStatus.Running;
         TickIndex = 0;
@@ -155,7 +166,12 @@ public sealed class StrategyRun
     {
         if (signedLots == 0) return LastSnapshot ?? BuildSnapshot([]);
 
-        var entry = CurrentFuturesPrice();
+        var reference = CurrentFuturesPrice();
+        var side = signedLots > 0 ? TradeSide.Buy : TradeSide.Sell;
+        var entry = SimulatedFill.Price(reference, side, _config.FuturesTickSize,
+            _config.FuturesSlippageTicks);
+        var charge = IndianDerivativesCosts.Calculate(DerivativeKind.Future, side, entry,
+            reference, Math.Abs(signedLots) * _config.LotSize, _fees);
         _futures.Add(new FuturesPosition
         {
             Id = $"FUT-{_futures.Count + 1}",
@@ -163,7 +179,14 @@ public sealed class StrategyRun
             QuantityLots = Math.Abs(signedLots),
             EntryPrice = entry,
         });
-        _futures[^1].Mark(entry);
+        _futures[^1].Mark(reference);
+        if (_config.EnforceEstimatedMargin &&
+            EstimateMargin().Required > _config.Capital + NetPnlNow() - (charge.Total - charge.Slippage))
+        {
+            _futures.RemoveAt(_futures.Count - 1);
+            throw new InvalidOperationException("Hedge would exceed estimated virtual margin. Close exposure first.");
+        }
+        _accounting.Record(charge);
 
         RecordDecision(rule, description, "applied");
         return BuildSnapshot(EvaluateCoach());
@@ -175,7 +198,13 @@ public sealed class StrategyRun
         var leg = _legs.FirstOrDefault(l => l.Id == legId && l.Status == LegStatus.Open)
             ?? throw new KeyNotFoundException($"Open leg '{legId}' not found.");
 
-        leg.Exit(leg.LastPrice);
+        var reference = leg.LastPrice;
+        var ticks = IvMultiplier >= _config.IvSpikeWarnMultiplier
+            ? _config.SpikeOptionSlippageTicks : _config.NormalOptionSlippageTicks;
+        var fill = SimulatedFill.Price(reference, TradeSide.Buy, _config.OptionTickSize, ticks);
+        leg.Exit(fill);
+        _accounting.Record(IndianDerivativesCosts.Calculate(DerivativeKind.Option, TradeSide.Buy,
+            fill, reference, leg.QuantityLots * _config.LotSize, _fees));
         RecordDecision(rule, description, "applied");
         return BuildSnapshot(EvaluateCoach());
     }
@@ -239,7 +268,8 @@ public sealed class StrategyRun
 
     private double NetPnlNow() =>
         PortfolioMath.RealizedPnl(_legs, _futures, _config.LotSize)
-        + PortfolioMath.UnrealizedPnl(_legs, _futures, _config.LotSize);
+        + PortfolioMath.UnrealizedPnl(_legs, _futures, _config.LotSize)
+        - _accounting.Fees;
 
     private void UpdateDecisionOutcomes()
     {
@@ -310,9 +340,11 @@ public sealed class StrategyRun
         return new PortfolioTotals
         {
             Realized = Math.Round(realized),
+            Costs = _accounting.Snapshot(),
+            Margin = EstimateMargin(),
             Unrealized = Math.Round(unrealized),
             PremiumCollected = Math.Round(PortfolioMath.PremiumCollected(_legs, _config.LotSize)),
-            MaxLossSoFar = Math.Round(Math.Min(MaxLossSoFar, realized + unrealized)),
+            MaxLossSoFar = Math.Round(Math.Min(MaxLossSoFar, NetPnlNow())),
             DrawdownFraction = Math.Round(DrawdownFraction(), 4),
             NetGreeks = PortfolioMath.NetGreeks(_legs, _futures, _config.LotSize, _config.RiskFreeRate, YearsToExpiry()),
         };
@@ -337,38 +369,59 @@ public sealed class StrategyRun
     }
 
     private List<PayoffPoint> ExpiryCurve() => BuildCurve(s => Math.Round(
-        PortfolioMath.ExpiryPnl(_legs, _futures, _config.LotSize, s)));
+        PortfolioMath.ExpiryPnl(_legs, _futures, _config.LotSize, s) - _accounting.Fees));
 
-    private List<PayoffPoint> TodayCurve()
+    private List<PayoffPoint> TodayCurve() =>
+        BuildCurve(s => Math.Round(MarkPnlAt(s, IvMultiplier, YearsToExpiry()) - _accounting.Fees));
+
+    /// <summary>Reprice the same open book under a counterfactual spot/IV state.</summary>
+    private double MarkPnlAt(double spot, double ivMultiplier, double years)
+    {
+        double pnl = 0;
+        foreach (var leg in _legs)
+        {
+            var units = Math.Abs(leg.QuantityLots) * _config.LotSize;
+            if (leg.Status != LegStatus.Open)
+            {
+                pnl += leg.RealizedPoints * units;
+                continue;
+            }
+            var iv = _surface.IvFor(leg.Type, spot, leg.Strike, ivMultiplier);
+            var price = _pricer.Price(leg.Type, spot, leg.Strike, years, iv).Price;
+            pnl += leg.Direction * (price - leg.EntryPrice) * units;
+        }
+        var futPx = FuturesMath.Price(spot, _config.RiskFreeRate, years);
+        foreach (var f in _futures)
+        {
+            var units = Math.Abs(f.QuantityLots) * _config.LotSize;
+            pnl += (f.Status == LegStatus.Open
+                ? f.Direction * (futPx - f.EntryPrice)
+                : f.RealizedPoints) * units;
+        }
+        return pnl;
+    }
+
+    private MarginEstimate EstimateMargin()
     {
         var t = YearsToExpiry();
-        return BuildCurve(s =>
+        var current = MarkPnlAt(Spot, IvMultiplier, t);
+        var shock = _config.MarginStressSpotFraction;
+        var stressedIv = Math.Min(_config.IvMultiplierCap,
+            IvMultiplier * _config.MarginStressIvMultiplier);
+        var scenarios = new List<MarginScenario>();
+        foreach (var move in new[] { -shock, -shock / 2, shock / 2, shock })
         {
-            double pnl = 0;
-            foreach (var leg in _legs)
-            {
-                var units = Math.Abs(leg.QuantityLots) * _config.LotSize;
-                if (leg.Status != LegStatus.Open)
-                {
-                    pnl += leg.RealizedPoints * units;
-                    continue;
-                }
-                var iv = _surface.IvFor(leg.Type, s, leg.Strike, IvMultiplier);
-                var price = _pricer.Price(leg.Type, s, leg.Strike, t, iv).Price;
-                pnl += leg.Direction * (price - leg.EntryPrice) * units;
-            }
-
-            var futPx = FuturesMath.Price(s, _config.RiskFreeRate, t);
-            foreach (var f in _futures)
-            {
-                var units = Math.Abs(f.QuantityLots) * _config.LotSize;
-                pnl += f.Status == LegStatus.Open
-                    ? f.Direction * (futPx - f.EntryPrice) * units
-                    : f.RealizedPoints * units;
-            }
-
-            return Math.Round(pnl);
-        });
+            var stressedSpot = Spot * (1 + move);
+            var pnlChange = MarkPnlAt(stressedSpot, stressedIv, t) - current;
+            scenarios.Add(new MarginScenario(move,
+                (stressedIv - IvMultiplier) * _config.BaseIv * 100, pnlChange));
+        }
+        var shorts = _legs.Where(l => l.Status == LegStatus.Open && l.Direction < 0)
+            .Sum(l => l.QuantityLots);
+        var futures = _futures.Where(f => f.Status == LegStatus.Open)
+            .Sum(f => f.QuantityLots);
+        return PortfolioMarginEstimate.Estimate(_config.Capital + NetPnlNow(), Spot,
+            _config.LotSize, shorts, futures, scenarios, _config.MarginExposureRate);
     }
 
     private List<PayoffPoint> BuildCurve(Func<double, double> pnlAt)
