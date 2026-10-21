@@ -167,7 +167,7 @@ export function OptionsRisk() {
             </CardContent>
           </Card>
 
-          <CapitalCostsPanel totals={snapshot.totals} />
+          <CapitalCostsPanel totals={snapshot.totals} brokerProfile={config.brokerProfile} />
 
           <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} sx={{ mt: 2 }}>
             <Card sx={{ flex: 3 }}>
