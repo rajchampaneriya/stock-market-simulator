@@ -1,16 +1,20 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Button, Card, CardContent, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 
 type Risk = { mean: number; median: number; probabilityOfLoss: number; var95: number; expectedShortfall95: number; p05: number; p95: number };
 type Result = { hold: Risk; act: Risk; estimatedActionCosts: number; paths: number; seed: number; disclaimer: string };
 const inr = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 
-export function MonteCarloPanel({ brokerUrl, sessionId }: { brokerUrl: string; sessionId: string | null }) {
+export function MonteCarloPanel({ brokerUrl, sessionId, tickIndex }: {
+  brokerUrl: string; sessionId: string | null; tickIndex: number;
+}) {
   const [paths, setPaths] = useState(5000);
   const [seed, setSeed] = useState(42);
   const [hedge, setHedge] = useState(1);
   const [horizon, setHorizon] = useState(30);
   const [result, setResult] = useState<Result | null>(null);
+  const [resultTick, setResultTick] = useState<number | null>(null);
+  useEffect(() => { setResult(null); setResultTick(null); }, [sessionId]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -26,6 +30,7 @@ export function MonteCarloPanel({ brokerUrl, sessionId }: { brokerUrl: string; s
       });
       if (!response.ok) throw new Error(`Simulation returned HTTP ${response.status}`);
       setResult(await response.json() as Result);
+      setResultTick(tickIndex);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Projection failed');
     } finally {
@@ -58,6 +63,7 @@ export function MonteCarloPanel({ brokerUrl, sessionId }: { brokerUrl: string; s
     </Stack>
     {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
     {result && <>
+      {resultTick !== tickIndex && <Alert severity="info" sx={{ mt: 2 }}>Market moved since tick {resultTick}; rerun to refresh the projection.</Alert>}
       <Table size="small" sx={{ mt: 2 }}>
         <TableHead><TableRow><TableCell>Risk measure</TableCell><TableCell align="right">Hold</TableCell><TableCell align="right">Hedge</TableCell></TableRow></TableHead>
         <TableBody>{rows.map(([label, key, percentage]) =>
@@ -67,7 +73,7 @@ export function MonteCarloPanel({ brokerUrl, sessionId }: { brokerUrl: string; s
           </TableRow>)}</TableBody>
       </Table>
       <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
-        Opening hedge cost: {inr(result.estimatedActionCosts)} · {result.paths.toLocaleString()} paths · seed {result.seed}
+        Estimated opening hedge cost: {inr(result.estimatedActionCosts)} · {result.paths.toLocaleString()} paths · seed {result.seed}
       </Typography>
       <Alert severity="warning" sx={{ mt: 1 }}>{result.disclaimer}</Alert>
     </>}
