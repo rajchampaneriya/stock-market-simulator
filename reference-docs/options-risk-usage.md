@@ -45,6 +45,10 @@ It does not auto-liquidate a position if a later price move produces a margin sh
 Actual NSE and broker margin can be substantially different because of offsets,
 intraday rules, expiry-day add-ons, concentration, portfolio offsets and collateral haircuts.
 
+## Intraday market clock
+
+The shared market engine generates GBM/OU/GARCH-like raw returns using a subsecond wall-clock tick assumption. The options adapter applies a deterministic EWMA return normalizer to the configured simulated trading-minute time scale before applying separately labelled event shocks. This preserves the original engine as the data source without silently inheriting its incompatible per-tick variance. It is still a synthetic model, not historical NIFTY calibration.
+
 ## Monte Carlo
 
 The engine uses seeded lognormal paths with optional symmetric jumps and IV mean reversion.
