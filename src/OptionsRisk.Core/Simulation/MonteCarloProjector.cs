@@ -29,6 +29,7 @@ public static class MonteCarloProjector
             throw new ArgumentOutOfRangeException(nameof(settings));
 
         var cfg = run.Config;
+        fees ??= IndianFeeSchedule.ForBroker(cfg.BrokerProfile);
         var rng = new Random(s.Seed);
         var hold = new double[s.Paths];
         var act = new double[s.Paths];
