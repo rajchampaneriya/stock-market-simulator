@@ -24,6 +24,7 @@ public sealed class OptionsRunEngine : BackgroundService
     private RealisticPriceEngine _priceEngine = new();
     private SpikeGenerator _spikes = new(0, 0.01, 0.03, 0.3);
     private EventShockOverlay _eventShock = new(0.995);
+    private IntradayPriceNormalizer _normalizer = new(25000, 0.13, 375, 1);
     private StrategyRun? _run;
     private double _ivMultiplier = 1.0;
     private int _simMinute;
@@ -55,6 +56,9 @@ public sealed class OptionsRunEngine : BackgroundService
                 BaseVolume = 6000,
             });
             _eventShock = new EventShockOverlay(config.SpikeRetentionPerTick);
+            _normalizer = new IntradayPriceNormalizer(config.StartingSpot,
+                config.UnderlyingAnnualVol, config.TradingMinutesPerDay,
+                config.SimMinutesPerTick, config.MeanReversionStrength);
             _spikes = new SpikeGenerator(
                 config.SpikeProbabilityPerTick, config.SpikeMinMagnitude,
                 config.SpikeMaxMagnitude, config.SpikeIvJumpPerPercent,
@@ -204,7 +208,7 @@ public sealed class OptionsRunEngine : BackgroundService
     {
         var config = _run!.Config;
         var (walkPriceDecimal, _) = _priceEngine.NextTick(_symbol);
-        var walkPrice = (double)walkPriceDecimal;
+        var walkPrice = _normalizer.Next((double)walkPriceDecimal);
 
         // Retain the shock in log-price space: otherwise the next base-engine
         // tick silently erases the jump and creates an unlabelled reverse spike.
