@@ -41,7 +41,8 @@ public sealed class OptionsRiskController : ControllerBase
         WingOffset: _settings.WingOffset,
         Capital: _settings.Capital,
         DaysToExpiry: _settings.DaysToExpiry,
-        Speeds: _settings.EffectiveSpeeds));
+        Speeds: _settings.EffectiveSpeeds,
+        BrokerProfile: _settings.BrokerProfile));
 
     [HttpGet("state")]
     public ActionResult<OptionsSnapshotDto> GetState()
