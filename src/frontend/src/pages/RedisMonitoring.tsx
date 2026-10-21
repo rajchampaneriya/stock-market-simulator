@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Typography,
   Box,
@@ -22,7 +22,7 @@ export function RedisMonitoring() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const brokerUrl = import.meta.env.DEV ? '' : (import.meta.env.VITE_BROKER_URL || 'http://localhost:5002');
-  const service = new RedisMonitoringService(brokerUrl);
+  const service = useMemo(() => new RedisMonitoringService(brokerUrl), [brokerUrl]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -35,11 +35,11 @@ export function RedisMonitoring() {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch stream information';
       setError(errorMessage);
-      console.error('Error fetching stream info:', err);
+      // Keep any previously loaded rows visible as a last-known snapshot.
     } finally {
       setLoading(false);
     }
-  }, [brokerUrl]);
+  }, [service]);
 
   useEffect(() => {
     fetchData();
@@ -114,8 +114,21 @@ export function RedisMonitoring() {
           </Box>
         )}
 
+        {/* A failed request must not be labelled as an empty Redis stream. */}
+        {error && streams.length === 0 && (
+          <Alert severity="info" sx={{ mb: 3 }}>
+            Stream status is unknown while the monitoring API is unavailable.
+            Check Redis and Broker Service health in the Aspire dashboard, then press Refresh.
+          </Alert>
+        )}
+        {error && streams.length > 0 && (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Displaying the last successful snapshot; current Redis stream status is unknown.
+          </Alert>
+        )}
+
         {/* Stream Table */}
-        {(!loading || streams.length > 0) && (
+        {(!loading || streams.length > 0) && (!error || streams.length > 0) && (
           <Box sx={{ mb: 4 }}>
             <Typography variant="subtitle2" sx={{ mb: 1.5, color: '#787b86' }}>
               ACTIVE STREAMS
