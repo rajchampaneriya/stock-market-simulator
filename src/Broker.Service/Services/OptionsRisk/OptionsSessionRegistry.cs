@@ -28,13 +28,18 @@ public sealed class OptionsSessionRegistry : IDisposable
         var stream = new OptionsStreamManager();
         var engine = new OptionsRunEngine(_settings, stream, _logs.CreateLogger<OptionsRunEngine>());
         var id = Guid.NewGuid();
-        if (!_sessions.TryAdd(id, new Entry(engine, stream, DateTime.UtcNow))) {
+        try {
+            engine.Start(seed);
+            if (!_sessions.TryAdd(id, new Entry(engine, stream, DateTime.UtcNow))) {
+                engine.Dispose();
+                return null;
+            }
+            _ = engine.StartAsync(CancellationToken.None);
+            return (id, engine, stream);
+        } catch {
             engine.Dispose();
-            return null;
+            throw;
         }
-        engine.Start(seed);
-        _ = engine.StartAsync(CancellationToken.None);
-        return (id, engine, stream);
     }
 
     public (OptionsRunEngine Engine, OptionsStreamManager Stream)? Get(Guid id) {
@@ -44,6 +49,7 @@ public sealed class OptionsSessionRegistry : IDisposable
 
     public bool Remove(Guid id) {
         if (!_sessions.TryRemove(id, out var entry)) return false;
+        entry.Engine.StopAsync(CancellationToken.None).GetAwaiter().GetResult();
         entry.Engine.Dispose();
         return true;
     }
