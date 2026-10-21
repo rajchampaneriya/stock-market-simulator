@@ -22,7 +22,8 @@ public sealed class BlackScholesPricer(double riskFreeRate = 0.065) : IOptionPri
 
         double price, delta, theta;
         var vegaRaw = spot * pdf * sqrtT; // per 1.0 vol
-        var gamma = disc * pdf / (spot * sigma * sqrtT);
+        // With zero dividends, gamma is phi(d1)/(S*sigma*sqrt(T)); discounting by e^(-rT) is incorrect.
+        var gamma = pdf / (spot * sigma * sqrtT);
 
         if (type == OptionType.Call)
         {
