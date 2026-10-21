@@ -22,6 +22,7 @@ public sealed class OptionsRunEngine : BackgroundService
 
     private RealisticPriceEngine _priceEngine = new();
     private SpikeGenerator _spikes = new(0, 0.01, 0.03, 0.3);
+    private EventShockOverlay _eventShock = new(0.995);
     private StrategyRun? _run;
     private double _ivMultiplier = 1.0;
     private int _simMinute;
@@ -52,6 +53,7 @@ public sealed class OptionsRunEngine : BackgroundService
                 MeanReversionStrength = config.MeanReversionStrength,
                 BaseVolume = 6000,
             });
+            _eventShock = new EventShockOverlay(config.SpikeRetentionPerTick);
             _spikes = new SpikeGenerator(
                 config.SpikeProbabilityPerTick, config.SpikeMinMagnitude,
                 config.SpikeMaxMagnitude, config.SpikeIvJumpPerPercent,
@@ -195,15 +197,16 @@ public sealed class OptionsRunEngine : BackgroundService
         var (walkPriceDecimal, _) = _priceEngine.NextTick(_symbol);
         var walkPrice = (double)walkPriceDecimal;
 
-        var spot = walkPrice;
-        SpikeEvent? spikeEvent = null;
+        // Retain the shock in log-price space: otherwise the next base-engine
+        // tick silently erases the jump and creates an unlabelled reverse spike.
         var spike = _spikes.NextSpike();
+        var beforeShock = _eventShock.BeforeSpike(walkPrice);
+        var spot = _eventShock.Next(walkPrice, spike?.MagnitudeFraction);
+        SpikeEvent? spikeEvent = null;
         if (spike is { } s)
         {
-            var jumped = spot * (1.0 + s.MagnitudeFraction);
-            spot = Math.Round(jumped, 2);
             _ivMultiplier = Math.Min(config.IvMultiplierCap, _ivMultiplier + s.IvMultiplierJump);
-            spikeEvent = new SpikeEvent(0, _simMinute, walkPrice, spot, s.IvMultiplierJump);
+            spikeEvent = new SpikeEvent(0, _simMinute, beforeShock, spot, s.IvMultiplierJump);
         }
 
         // Vol expansion partly reverts every tick after the spike.
