@@ -43,6 +43,7 @@ public sealed class OptionsRiskSettings
     public int SuggestionCooldownTicks { get; set; } = 120;
     public double Capital { get; set; } = 500_000;
     public bool AutoPauseOnSpike { get; set; } = true;
+    public string BrokerProfile { get; set; } = "Zerodha";
     public double OptionTickSize { get; set; } = 0.05;
     public double FuturesTickSize { get; set; } = 0.05;
     public double NormalOptionSlippageTicks { get; set; } = 1;
@@ -84,6 +85,7 @@ public sealed class OptionsRiskSettings
         SuggestionCooldownTicks = SuggestionCooldownTicks,
         Capital = Capital,
         AutoPauseOnSpike = AutoPauseOnSpike,
+        BrokerProfile = BrokerProfile,
         OptionTickSize = OptionTickSize,
         FuturesTickSize = FuturesTickSize,
         NormalOptionSlippageTicks = NormalOptionSlippageTicks,
