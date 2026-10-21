@@ -4,6 +4,7 @@ using OptionsRisk.Core.Coach;
 using OptionsRisk.Core.Market;
 using OptionsRisk.Core.Pricing;
 using OptionsRisk.Core.Strategy;
+using OptionsRisk.Core.Simulation;
 
 namespace Broker.Service.Services.OptionsRisk;
 
@@ -161,7 +162,13 @@ public sealed class OptionsRunEngine : BackgroundService
 
     public sealed record ApplyActionRequest(string SuggestionId);
 
-    public StrategyRun? GetRunForProjection() { lock (_gate) return _run; }
+    public MonteCarloComparison? ProjectMonteCarlo(int signedLots, MonteCarloSettings settings)
+    {
+        // Snapshot consistency: no market tick or user action may mutate the
+        // positions while a counterfactual projection reads them.
+        lock (_gate)
+            return _run is null ? null : MonteCarloProjector.Compare(_run, signedLots, settings);
+    }
 
     // --- Tick loop ---
 
