@@ -47,6 +47,7 @@ var optionsRiskSettings = new Broker.Service.Services.OptionsRisk.OptionsRiskSet
 builder.Configuration.GetSection("OptionsRisk").Bind(optionsRiskSettings);
 builder.Services.AddSingleton(optionsRiskSettings);
 builder.Services.AddSingleton<Broker.Service.Services.OptionsRisk.OptionsStreamManager>();
+builder.Services.AddSingleton<Broker.Service.Services.OptionsRisk.OptionsSessionRegistry>();
 builder.Services.AddScoped<Broker.Service.Services.OptionsRisk.OptionsFeatureGate>();
 builder.Services.AddSingleton<Broker.Service.Services.OptionsRisk.OptionsRunEngine>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<Broker.Service.Services.OptionsRisk.OptionsRunEngine>());
