@@ -29,7 +29,6 @@ public sealed class OptionsRunEngine : BackgroundService
     private double _ivMultiplier = 1.0;
     private int _simMinute;
     private int _speed = 1;
-    private bool _userPaused;
     private string _symbol = "OPTIONS-NIFTY";
 
     public OptionsRunEngine(OptionsRiskSettings settings, OptionsStreamManager stream, ILogger<OptionsRunEngine> logger)
@@ -67,7 +66,6 @@ public sealed class OptionsRunEngine : BackgroundService
             _ivMultiplier = 1.0;
             _simMinute = 0;
             _speed = 1;
-            _userPaused = false;
 
             var snapshot = _run.Open(config.StartingSpot);
             var dto = OptionsDtoMapper.ToDto(snapshot, _speed, config.LotSize);
@@ -90,7 +88,6 @@ public sealed class OptionsRunEngine : BackgroundService
     {
         lock (_gate)
         {
-            _userPaused = true;
             _run?.Pause();
             return CurrentDto();
         }
