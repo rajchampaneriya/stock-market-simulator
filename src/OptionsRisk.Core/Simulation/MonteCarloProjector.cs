@@ -84,11 +84,20 @@ public static class MonteCarloProjector
                 pnl += (f.Status == LegStatus.Exited ? f.RealizedPoints :
                     f.Direction * (futurePrice - f.EntryPrice)) * cfg.LotSize * f.QuantityLots;
             hold[path] = pnl - paidFees;
+            var closingCost = 0.0;
+            if (signedFuturesHedgeLots != 0)
+            {
+                var closeSide = signedFuturesHedgeLots > 0 ? TradeSide.Sell : TradeSide.Buy;
+                var closeFill = SimulatedFill.Price(futurePrice, closeSide,
+                    cfg.FuturesTickSize, cfg.FuturesSlippageTicks);
+                closingCost = IndianDerivativesCosts.Calculate(DerivativeKind.Future, closeSide,
+                    closeFill, futurePrice, Math.Abs(signedFuturesHedgeLots) * cfg.LotSize, fees).Total;
+            }
             act[path] = hold[path] + signedFuturesHedgeLots * cfg.LotSize *
-                (futurePrice - initialFutures) - actionCosts;
+                (futurePrice - initialFutures) - actionCosts - closingCost;
         }
         return new MonteCarloComparison(Summarize(hold), Summarize(act), actionCosts, s.Paths,
-            s.Seed, "Educational model-conditioned scenarios, not market forecasts; no broker-calibrated margin or order-book impact.");
+            s.Seed, "Educational model-conditioned scenarios, not market forecasts; hedge includes estimated entry and exit costs; no broker-calibrated margin, dynamic rehedging or order-book depth.");
     }
 
     private static MonteCarloSummary Summarize(double[] pnl)
