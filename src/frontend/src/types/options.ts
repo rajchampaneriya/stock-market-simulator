@@ -6,6 +6,7 @@ export interface OptionsConfig {
   capital: number;
   daysToExpiry: number;
   speeds: number[];
+  brokerProfile: string;
 }
 
 export interface Leg {
