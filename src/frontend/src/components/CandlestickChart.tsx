@@ -85,10 +85,6 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
       .domain([0, volMax])
       .range([0, volumeHeight - 4]);
 
-    const timeScale = d3.scaleTime()
-      .domain(d3.extent(data, d => d.timestamp) as [Date, Date])
-      .range([0, innerWidth]);
-
     // --- Grid Lines ---
     const yTicks = yScale.ticks(6);
     yTicks.forEach(tick => {
@@ -102,7 +98,7 @@ export const CandlestickChart: React.FC<CandlestickChartProps> = ({
     });
 
     const xTickInterval = Math.max(1, Math.floor(data.length / 6));
-    data.forEach((d, i) => {
+    data.forEach((_d, i) => {
       if (i % xTickInterval === 0) {
         const x = (xScale(i) ?? 0) + (xScale.bandwidth() / 2);
         g.append('line')

@@ -2,6 +2,7 @@ import { AppBar, Toolbar, Typography, Button, Box, Tooltip } from '@mui/material
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import ShowChartIcon from '@mui/icons-material/ShowChart';
 import StorageIcon from '@mui/icons-material/Storage';
+import PieChartIcon from '@mui/icons-material/PieChart';
 import { useState, useEffect } from 'react';
 
 /**
@@ -102,6 +103,28 @@ export function Navigation() {
               }}
             >
               Streams
+            </Button>
+            <Button
+              component={RouterLink}
+              to="/options"
+              size="small"
+              startIcon={<PieChartIcon sx={{ fontSize: '14px !important' }} />}
+              sx={{
+                color: location.pathname === '/options' ? '#fff' : '#787b86',
+                bgcolor: location.pathname === '/options' ? 'rgba(41, 98, 255, 0.15)' : 'transparent',
+                borderRadius: '4px',
+                px: 1.5,
+                py: 0.5,
+                minHeight: 32,
+                fontSize: '0.8125rem',
+                fontWeight: location.pathname === '/options' ? 600 : 400,
+                '&:hover': {
+                  bgcolor: location.pathname === '/options' ? 'rgba(41, 98, 255, 0.2)' : 'rgba(255,255,255,0.04)',
+                  color: '#d1d4dc',
+                },
+              }}
+            >
+              Options Lab
             </Button>
           </Box>
         </Box>

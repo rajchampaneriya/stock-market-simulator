@@ -21,6 +21,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Shared.Contracts\Shared.Contracts.csproj" />
+    <ProjectReference Include="..\OptionsRisk.Core\OptionsRisk.Core.csproj" />
+    <ProjectReference Include="..\MarketSimulator\MarketSimulator.csproj" />
   </ItemGroup>
 
 </Project>

@@ -41,6 +41,16 @@ var historyMaxCandles = builder.Configuration.GetValue<int>("Candlestick:MaxHist
 var historySeedCount = builder.Configuration.GetValue<int>("Candlestick:SeedCount", 30);
 builder.Services.AddSingleton(new CandlestickHistory(historyMaxCandles, historySeedCount));
 
+// Options selling risk simulator (educational) — endpoints gated by Features:EnableOptionsRisk.
+// The engine idles until a run is started, so the flag only controls exposure.
+var optionsRiskSettings = new Broker.Service.Services.OptionsRisk.OptionsRiskSettings();
+builder.Configuration.GetSection("OptionsRisk").Bind(optionsRiskSettings);
+builder.Services.AddSingleton(optionsRiskSettings);
+builder.Services.AddSingleton<Broker.Service.Services.OptionsRisk.OptionsStreamManager>();
+builder.Services.AddScoped<Broker.Service.Services.OptionsRisk.OptionsFeatureGate>();
+builder.Services.AddSingleton<Broker.Service.Services.OptionsRisk.OptionsRunEngine>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<Broker.Service.Services.OptionsRisk.OptionsRunEngine>());
+
 // Background consumer (reads from Redis stream)
 builder.Services.AddHostedService<RedisStreamConsumer>();
 
