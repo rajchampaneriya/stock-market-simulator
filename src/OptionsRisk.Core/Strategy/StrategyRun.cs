@@ -368,38 +368,59 @@ public sealed class StrategyRun
     }
 
     private List<PayoffPoint> ExpiryCurve() => BuildCurve(s => Math.Round(
-        PortfolioMath.ExpiryPnl(_legs, _futures, _config.LotSize, s)));
+        PortfolioMath.ExpiryPnl(_legs, _futures, _config.LotSize, s) - _accounting.Fees));
 
-    private List<PayoffPoint> TodayCurve()
+    private List<PayoffPoint> TodayCurve() =>
+        BuildCurve(s => Math.Round(MarkPnlAt(s, IvMultiplier, YearsToExpiry()) - _accounting.Fees));
+
+    /// <summary>Reprice the same open book under a counterfactual spot/IV state.</summary>
+    private double MarkPnlAt(double spot, double ivMultiplier, double years)
+    {
+        double pnl = 0;
+        foreach (var leg in _legs)
+        {
+            var units = Math.Abs(leg.QuantityLots) * _config.LotSize;
+            if (leg.Status != LegStatus.Open)
+            {
+                pnl += leg.RealizedPoints * units;
+                continue;
+            }
+            var iv = _surface.IvFor(leg.Type, spot, leg.Strike, ivMultiplier);
+            var price = _pricer.Price(leg.Type, spot, leg.Strike, years, iv).Price;
+            pnl += leg.Direction * (price - leg.EntryPrice) * units;
+        }
+        var futPx = FuturesMath.Price(spot, _config.RiskFreeRate, years);
+        foreach (var f in _futures)
+        {
+            var units = Math.Abs(f.QuantityLots) * _config.LotSize;
+            pnl += (f.Status == LegStatus.Open
+                ? f.Direction * (futPx - f.EntryPrice)
+                : f.RealizedPoints) * units;
+        }
+        return pnl;
+    }
+
+    private MarginEstimate EstimateMargin()
     {
         var t = YearsToExpiry();
-        return BuildCurve(s =>
+        var current = MarkPnlAt(Spot, IvMultiplier, t);
+        var shock = _config.MarginStressSpotFraction;
+        var stressedIv = Math.Min(_config.IvMultiplierCap,
+            IvMultiplier * _config.MarginStressIvMultiplier);
+        var scenarios = new List<MarginScenario>();
+        foreach (var move in new[] { -shock, -shock / 2, shock / 2, shock })
         {
-            double pnl = 0;
-            foreach (var leg in _legs)
-            {
-                var units = Math.Abs(leg.QuantityLots) * _config.LotSize;
-                if (leg.Status != LegStatus.Open)
-                {
-                    pnl += leg.RealizedPoints * units;
-                    continue;
-                }
-                var iv = _surface.IvFor(leg.Type, s, leg.Strike, IvMultiplier);
-                var price = _pricer.Price(leg.Type, s, leg.Strike, t, iv).Price;
-                pnl += leg.Direction * (price - leg.EntryPrice) * units;
-            }
-
-            var futPx = FuturesMath.Price(s, _config.RiskFreeRate, t);
-            foreach (var f in _futures)
-            {
-                var units = Math.Abs(f.QuantityLots) * _config.LotSize;
-                pnl += f.Status == LegStatus.Open
-                    ? f.Direction * (futPx - f.EntryPrice) * units
-                    : f.RealizedPoints * units;
-            }
-
-            return Math.Round(pnl);
-        });
+            var stressedSpot = Spot * (1 + move);
+            var pnlChange = MarkPnlAt(stressedSpot, stressedIv, t) - current;
+            scenarios.Add(new MarginScenario(move,
+                (stressedIv - IvMultiplier) * _config.BaseIv * 100, pnlChange));
+        }
+        var shorts = _legs.Where(l => l.Status == LegStatus.Open && l.Direction < 0)
+            .Sum(l => l.QuantityLots);
+        var futures = _futures.Where(f => f.Status == LegStatus.Open)
+            .Sum(f => f.QuantityLots);
+        return PortfolioMarginEstimate.Estimate(_config.Capital + NetPnlNow(), Spot,
+            _config.LotSize, shorts, futures, scenarios, _config.MarginExposureRate);
     }
 
     private List<PayoffPoint> BuildCurve(Func<double, double> pnlAt)
