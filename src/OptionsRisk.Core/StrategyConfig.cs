@@ -86,6 +86,7 @@ public record StrategyConfig
     public bool AutoPauseOnSpike { get; init; } = true;
 
     /// <summary>Simulated option/futures minimum price increment (rupees per unit).</summary>
+    public string BrokerProfile { get; init; } = "Zerodha";
     public double OptionTickSize { get; init; } = 0.05;
     public double FuturesTickSize { get; init; } = 0.05;
 
