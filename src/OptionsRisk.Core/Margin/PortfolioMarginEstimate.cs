@@ -14,7 +14,7 @@ public static class PortfolioMarginEstimate
         int shortOptionLots, int futureLots, IReadOnlyList<MarginScenario> scenarios,
         double exposureRate = 0.02)
     {
-        if (capital < 0 || spot <= 0 || lotSize <= 0 || shortOptionLots < 0 || futureLots < 0 ||
+        if (!double.IsFinite(capital) || spot <= 0 || lotSize <= 0 || shortOptionLots < 0 || futureLots < 0 ||
             exposureRate < 0 || scenarios.Count == 0)
             throw new ArgumentOutOfRangeException(nameof(capital));
         var worstLoss = Math.Max(0, -scenarios.Min(s => s.ProjectedPnl));
