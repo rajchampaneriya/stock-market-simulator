@@ -43,6 +43,15 @@ public sealed class OptionsRiskSettings
     public int SuggestionCooldownTicks { get; set; } = 120;
     public double Capital { get; set; } = 500_000;
     public bool AutoPauseOnSpike { get; set; } = true;
+    public double OptionTickSize { get; set; } = 0.05;
+    public double FuturesTickSize { get; set; } = 0.05;
+    public double NormalOptionSlippageTicks { get; set; } = 1;
+    public double SpikeOptionSlippageTicks { get; set; } = 8;
+    public double FuturesSlippageTicks { get; set; } = 2;
+    public double MarginStressSpotFraction { get; set; } = 0.03;
+    public double MarginStressIvMultiplier { get; set; } = 1.5;
+    public double MarginExposureRate { get; set; } = 0.02;
+    public bool EnforceEstimatedMargin { get; set; } = true;
     public int? Seed { get; set; }
     public double ProjectionShockFraction { get; set; } = 0.01;
     public double ProjectionHorizonMinutes { get; set; } = 30;
@@ -75,6 +84,15 @@ public sealed class OptionsRiskSettings
         SuggestionCooldownTicks = SuggestionCooldownTicks,
         Capital = Capital,
         AutoPauseOnSpike = AutoPauseOnSpike,
+        OptionTickSize = OptionTickSize,
+        FuturesTickSize = FuturesTickSize,
+        NormalOptionSlippageTicks = NormalOptionSlippageTicks,
+        SpikeOptionSlippageTicks = SpikeOptionSlippageTicks,
+        FuturesSlippageTicks = FuturesSlippageTicks,
+        MarginStressSpotFraction = MarginStressSpotFraction,
+        MarginStressIvMultiplier = MarginStressIvMultiplier,
+        MarginExposureRate = MarginExposureRate,
+        EnforceEstimatedMargin = EnforceEstimatedMargin,
         Seed = seedOverride ?? Seed,
         ProjectionShockFraction = ProjectionShockFraction,
         ProjectionHorizonMinutes = ProjectionHorizonMinutes,
