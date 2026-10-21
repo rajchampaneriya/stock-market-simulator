@@ -49,6 +49,22 @@ export interface Totals {
   netGamma: number;
   netThetaPerDay: number;
   netVegaPerPoint: number;
+  gross: number;
+  fees: number;
+  slippage: number;
+  transactionCosts: number;
+  brokerage: number;
+  stt: number;
+  exchange: number;
+  sebi: number;
+  stamp: number;
+  gst: number;
+  marginRequired: number;
+  marginAvailable: number;
+  marginUtilization: number;
+  marginStressLoss: number;
+  marginShortfall: boolean;
+  marginMethod: string;
 }
 
 export interface PayoffPoint {
