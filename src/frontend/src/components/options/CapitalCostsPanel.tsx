@@ -3,7 +3,7 @@ import type { Totals } from '../../types/options';
 
 const money = (n: number) => '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: 0 });
 
-export function CapitalCostsPanel({ totals }: { totals: Totals }) {
+export function CapitalCostsPanel({ totals, brokerProfile }: { totals: Totals; brokerProfile: string }) {
   const costRows: Array<[string, number]> = [
     ['Brokerage', totals.brokerage], ['STT', totals.stt],
     ['Exchange fees', totals.exchange], ['SEBI fees', totals.sebi],
@@ -29,6 +29,7 @@ export function CapitalCostsPanel({ totals }: { totals: Totals }) {
     </CardContent></Card>
     <Card sx={{ flex: 1 }}><CardContent>
       <Typography variant="h6">Net P/L & trading costs</Typography>
+      <Typography variant="caption" color="text.secondary">{brokerProfile} illustrative standard tariff</Typography>
       <Stack direction="row" justifyContent="space-between" sx={{ mt: 1 }}>
         <Typography>Mid-price gross P/L</Typography><Typography>{money(totals.gross)}</Typography>
       </Stack>
