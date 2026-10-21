@@ -23,6 +23,7 @@ public static class MonteCarloProjector
         var s = settings ?? new MonteCarloSettings();
         if (s.Paths < 100 || s.Paths > 100_000 || s.Steps < 1 || s.Steps > 10_000 ||
             s.HorizonTradingMinutes <= 0 || s.AnnualVolatility < 0 ||
+            s.IvJumpPerPercent < 0 || !double.IsFinite(s.AnnualVolatility) ||
             s.JumpProbabilityPerStep is < 0 or > 1 || s.JumpMin < 0 ||
             s.JumpMax < s.JumpMin || s.IvReversion is < 0 or > 1)
             throw new ArgumentOutOfRangeException(nameof(settings));
@@ -34,12 +35,17 @@ public static class MonteCarloProjector
         var spot0 = run.Spot;
         var initialFutures = FuturesMath.Price(spot0, cfg.RiskFreeRate,
             run.MinutesToExpiry / (cfg.TradingMinutesPerDay * 252.0));
+        var hedgeSide = signedFuturesHedgeLots > 0 ? TradeSide.Buy : TradeSide.Sell;
+        var hedgeFill = SimulatedFill.Price(initialFutures, hedgeSide, cfg.FuturesTickSize,
+            cfg.FuturesSlippageTicks);
         var actionCosts = signedFuturesHedgeLots == 0 ? 0 :
-            IndianDerivativesCosts.Calculate(DerivativeKind.Future,
-                signedFuturesHedgeLots > 0 ? TradeSide.Buy : TradeSide.Sell,
-                initialFutures, initialFutures, Math.Abs(signedFuturesHedgeLots) * cfg.LotSize, fees).Total;
-        var dt = s.HorizonTradingMinutes / s.Steps / (cfg.TradingMinutesPerDay * 252.0);
-        var remaining = Math.Max(0, run.MinutesToExpiry - s.HorizonTradingMinutes);
+            IndianDerivativesCosts.Calculate(DerivativeKind.Future, hedgeSide,
+                hedgeFill, initialFutures, Math.Abs(signedFuturesHedgeLots) * cfg.LotSize, fees).Total;
+        var paidFees = run.LastSnapshot?.Totals.Costs.Total -
+            run.LastSnapshot?.Totals.Costs.Slippage ?? 0;
+        var horizon = Math.Min(s.HorizonTradingMinutes, run.MinutesToExpiry);
+        var dt = horizon / s.Steps / (cfg.TradingMinutesPerDay * 252.0);
+        var remaining = Math.Max(0, run.MinutesToExpiry - horizon);
         var t = remaining / (cfg.TradingMinutesPerDay * 252.0);
         var pricer = new BlackScholesPricer(cfg.RiskFreeRate);
         var surface = new VolatilitySurface(cfg.BaseIv, cfg.SkewSlope);
@@ -77,8 +83,8 @@ public static class MonteCarloProjector
             foreach (var f in run.Futures)
                 pnl += (f.Status == LegStatus.Exited ? f.RealizedPoints :
                     f.Direction * (futurePrice - f.EntryPrice)) * cfg.LotSize * f.QuantityLots;
-            hold[path] = pnl;
-            act[path] = pnl + signedFuturesHedgeLots * cfg.LotSize *
+            hold[path] = pnl - paidFees;
+            act[path] = hold[path] + signedFuturesHedgeLots * cfg.LotSize *
                 (futurePrice - initialFutures) - actionCosts;
         }
         return new MonteCarloComparison(Summarize(hold), Summarize(act), actionCosts, s.Paths,
@@ -92,7 +98,7 @@ public static class MonteCarloProjector
         var mean = pnl.Average();
         return new MonteCarloSummary(mean, pnl[pnl.Length / 2],
             pnl.Count(x => x < 0) / (double)pnl.Length,
-            -pnl[tail - 1], -pnl.Take(tail).Average(),
+            Math.Max(0, -pnl[tail - 1]), Math.Max(0, -pnl.Take(tail).Average()),
             pnl[tail - 1], pnl[Math.Min(pnl.Length - 1, (int)(pnl.Length * 0.95))]);
     }
 }
