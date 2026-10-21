@@ -31,24 +31,22 @@ export function useOptionsRisk(brokerUrl: string): UseOptionsRiskResult {
   const esRef = useRef<EventSource | null>(null);
   const sessionRef = useRef<string | null>(null);
 
-  const post = useCallback(
-    (path: string, body?: unknown) =>
-      sessionRef.current ? fetch(`${broker}/api/options/sessions/${sessionRef.current}/${path}`, {
+  const post = useCallback(async (path: string, body?: unknown) => {
+    if (!sessionRef.current) return;
+    try {
+      setActionError(null);
+      const response = await fetch(`${broker}/api/options/sessions/${sessionRef.current}/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
-      })
-        .then(async (r) => {
-          if (!r.ok) throw new Error(`Action rejected (HTTP ${r.status})`);
-          return r.json();
-        })
-        .then((d) => {
-          if (d) setSnapshot(d);
-        })
-        .catch((e: unknown) => { setActionError(e instanceof Error ? e.message : 'Action failed'); }),
-      : Promise.resolve(),
-    [broker],
-  );
+      });
+      if (!response.ok) throw new Error(`Action rejected (HTTP ${response.status})`);
+      const next = await response.json() as OptionsSnapshot;
+      setSnapshot(next);
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : 'Action failed');
+    }
+  }, [broker]);
 
   const start = useCallback(async (seed?: number) => {
     try {
