@@ -8,7 +8,7 @@ namespace Broker.Service.Services.OptionsRisk;
 // Wire DTOs for the options simulator SSE/REST surface. Kept in Broker.Service:
 // the frontend consumes JSON, and no other service needs these shapes.
 
-public sealed record OptionsConfigDto(bool Enabled, int LotSize, double StrikeStep, double WingOffset, double Capital, double DaysToExpiry, int[] Speeds);
+public sealed record OptionsConfigDto(bool Enabled, int LotSize, double StrikeStep, double WingOffset, double Capital, double DaysToExpiry, int[] Speeds, string BrokerProfile);
 
 public sealed record LegDto(
     string Id, string Type, double Strike, string Side, int Lots,
