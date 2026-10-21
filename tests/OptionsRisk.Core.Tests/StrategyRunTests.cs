@@ -68,10 +68,11 @@ public class StrategyRunTests
         var entry = leg.EntryPrice;
         run.ExitLeg(leg.Id, "Test", "exit 25500 CE");
 
-        var expected = (entry - 80) * lotSize;                      // (entry − exit) × 75
+        var expected = (entry - (80 + run.Config.OptionTickSize * run.Config.NormalOptionSlippageTicks)) * lotSize;                      // (entry − exit) × 75
         var legRealized = leg.RealizedPoints * lotSize;
         Assert.Equal(expected, legRealized, 6);
         Assert.Equal(Math.Round(expected), run.LastSnapshot!.Totals.Realized, 0);
+        Assert.True(run.LastSnapshot.Totals.Costs.Total > 0);
         Assert.Equal(LegStatus.Exited, leg.Status);
     }
 
@@ -87,15 +88,15 @@ public class StrategyRunTests
         run.ExitLeg("25500-CE", "Stop-Loss", "exit wing call");
         var snap = Tick(run, 24900, 1.02);
 
-        var expected = snap.Totals.Realized + snap.Totals.Unrealized;
+        var expected = snap.Totals.Realized + snap.Totals.Unrealized - snap.Totals.Costs.Total + snap.Totals.Costs.Slippage;
         Assert.Equal(expected, snap.Totals.Net, 6);
-        Assert.Equal(snap.Totals.Realized + snap.Totals.Unrealized, snap.Totals.Net, 6);
+        Assert.Equal(snap.Totals.Gross - snap.Totals.Costs.Total, snap.Totals.Net, 6);
 
         // Cross-check: totals equal the sum over every position, open and closed.
         var perPosition = run.Legs
             .Concat<Position>(run.Futures)
             .Sum(p => (p.RealizedPoints + p.UnrealizedPoints) * Math.Abs(p.QuantityLots) * run.Config.LotSize);
-        Assert.Equal(perPosition, snap.Totals.Net, 0);
+        Assert.Equal(perPosition, snap.Totals.Realized + snap.Totals.Unrealized, 0);
         Assert.True(run.Futures.Count == 1 && run.Futures[0].Status == LegStatus.Open);
     }
 
