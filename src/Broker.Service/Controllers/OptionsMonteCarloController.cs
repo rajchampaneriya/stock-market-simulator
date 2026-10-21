@@ -13,11 +13,11 @@ public sealed class OptionsMonteCarloController : ControllerBase
     private readonly OptionsSessionRegistry _sessions;
     public OptionsMonteCarloController(OptionsSessionRegistry sessions) => _sessions = sessions;
 
-    public sealed record Request(int SignedFuturesHedgeLots = 0, int Paths = 5000,
+    public sealed record ProjectionRequest(int SignedFuturesHedgeLots = 0, int Paths = 5000,
         int Steps = 30, int Seed = 42, double HorizonTradingMinutes = 30);
 
     [HttpPost]
-    public IActionResult Project(Guid id, [FromBody] Request request)
+    public IActionResult Project(Guid id, [FromBody] ProjectionRequest request)
     {
         var session = _sessions.Get(id);
         if (session is null) return NotFound();
