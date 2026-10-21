@@ -58,6 +58,9 @@ public record StrategyConfig
     /// <summary>Fraction of spike-driven IV expansion retained after each tick.</summary>
     public double IvDecayPerTick { get; init; } = 0.97;
 
+    /// <summary>Fraction of the event-driven log-price shock retained each tick.</summary>
+    public double SpikeRetentionPerTick { get; init; } = 0.995;
+
     /// <summary>Ceiling on the IV multiplier so quotes stay sane in a spike storm.</summary>
     public double IvMultiplierCap { get; init; } = 3.0;
 
