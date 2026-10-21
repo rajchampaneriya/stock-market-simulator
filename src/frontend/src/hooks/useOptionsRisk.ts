@@ -25,10 +25,11 @@ export function useOptionsRisk(brokerUrl: string): UseOptionsRiskResult {
   const [connected, setConnected] = useState(false);
   const broker = brokerUrl || '';
   const esRef = useRef<EventSource | null>(null);
+  const sessionRef = useRef<string | null>(null);
 
   const post = useCallback(
     (path: string, body?: unknown) =>
-      fetch(`${broker}/api/options/${path}`, {
+      fetch(`${broker}/api/options/sessions/${sessionRef.current}/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: body === undefined ? undefined : JSON.stringify(body),
@@ -41,7 +42,25 @@ export function useOptionsRisk(brokerUrl: string): UseOptionsRiskResult {
     [broker],
   );
 
-  const start = useCallback((seed?: number) => post('start', { seed }), [post]);
+  const start = useCallback(async (seed?: number) => {
+    try {
+      const response = await fetch(`${broker}/api/options/sessions`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seed }),
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      esRef.current?.close();
+      sessionRef.current = data.sessionId;
+      setSnapshot(data.snapshot);
+      const es = new EventSource(`${broker}/api/options/sessions/${data.sessionId}/stream`);
+      esRef.current = es;
+      es.addEventListener('snapshot', (event) => {
+        try { setSnapshot(JSON.parse((event as MessageEvent).data)); setConnected(true); } catch { /* malformed frame */ }
+      });
+      es.onerror = () => setConnected(false);
+    } catch { setConnected(false); }
+  }, [broker]);
   const pause = useCallback(() => post('pause'), [post]);
   const resume = useCallback(() => post('resume'), [post]);
   const setSpeed = useCallback((speed: number) => post('speed', { speed }), [post]);
@@ -62,32 +81,8 @@ export function useOptionsRisk(brokerUrl: string): UseOptionsRiskResult {
       .catch(() => setConfigError(true));
   }, [broker]);
 
-  // SSE snapshot stream while the feature is enabled.
-  useEffect(() => {
-    if (!config?.enabled) return;
-
-    const es = new EventSource(`${broker}/api/options/stream`);
-    esRef.current = es;
-
-    const apply = (e: MessageEvent) => {
-      try {
-        setSnapshot(JSON.parse(e.data));
-        setConnected(true);
-      } catch {
-        /* malformed frame — next tick replaces it */
-      }
-    };
-
-    es.addEventListener('connected', () => setConnected(true));
-    es.addEventListener('snapshot', apply as EventListener);
-    es.onerror = () => setConnected(false);
-
-    return () => {
-      es.close();
-      esRef.current = null;
-      setConnected(false);
-    };
-  }, [broker, config?.enabled]);
+  // Stream belongs to this browser's isolated session; close on unmount.
+  useEffect(() => () => { esRef.current?.close(); }, []);
 
   return {
     config,
