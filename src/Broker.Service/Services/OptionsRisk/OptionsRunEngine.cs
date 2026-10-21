@@ -97,7 +97,6 @@ public sealed class OptionsRunEngine : BackgroundService
     {
         lock (_gate)
         {
-            _userPaused = false;
             _run?.Resume();
             return CurrentDto();
         }
