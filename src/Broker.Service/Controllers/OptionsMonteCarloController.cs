@@ -21,13 +21,15 @@ public sealed class OptionsMonteCarloController : ControllerBase
     {
         var session = _sessions.Get(id);
         if (session is null) return NotFound();
-        var run = session.Value.Engine.GetRunForProjection();
-        if (run is null) return Conflict(new { message = "Start a run first." });
         try
         {
-            return Ok(MonteCarloProjector.Compare(run, request.SignedFuturesHedgeLots,
+            if (request.Paths is < 100 or > 10000 || request.Steps is < 1 or > 500 ||
+                request.SignedFuturesHedgeLots is < -20 or > 20)
+                return BadRequest(new { message = "Projection parameters exceed safe limits." });
+            var result = session.Value.Engine.ProjectMonteCarlo(request.SignedFuturesHedgeLots,
                 new MonteCarloSettings(Paths: request.Paths, Steps: request.Steps,
-                    Seed: request.Seed, HorizonTradingMinutes: request.HorizonTradingMinutes)));
+                    Seed: request.Seed, HorizonTradingMinutes: request.HorizonTradingMinutes));
+            return result is null ? Conflict(new { message = "Start a run first." }) : Ok(result);
         }
         catch (ArgumentOutOfRangeException ex)
         {
