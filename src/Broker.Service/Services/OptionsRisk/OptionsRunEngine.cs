@@ -161,6 +161,8 @@ public sealed class OptionsRunEngine : BackgroundService
 
     public sealed record ApplyActionRequest(string SuggestionId);
 
+    public StrategyRun? GetRunForProjection() { lock (_gate) return _run; }
+
     // --- Tick loop ---
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
