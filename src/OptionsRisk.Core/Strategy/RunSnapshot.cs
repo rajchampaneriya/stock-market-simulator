@@ -24,8 +24,8 @@ public sealed record PortfolioTotals
     // Realized/unrealized use executed fills (already incorporating slippage).
     public double Gross => Realized + Unrealized + Costs.Slippage;
     public double Net => Realized + Unrealized - (Costs.Total - Costs.Slippage);
-    public required ExecutionCost Costs { get; init; }
-    public required MarginEstimate Margin { get; init; }
+    public ExecutionCost Costs { get; init; } = new(0, 0, 0, 0, 0, 0, 0);
+    public MarginEstimate Margin { get; init; } = new(0, 0, 0, 0, false, "Not evaluated");
     public required double PremiumCollected { get; init; }
     /// <summary>Worst net P/L reached during the run (≤ 0).</summary>
     public required double MaxLossSoFar { get; init; }
