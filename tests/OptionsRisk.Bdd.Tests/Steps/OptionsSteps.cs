@@ -59,7 +59,7 @@ public sealed class OptionsSteps
             _config.DeltaHedgeThresholdLots * _config.LotSize);
     }
 
-    [Then("it shows projected P/L with and without the hedge")]
+    [Then(@"^it shows projected P/L with and without the hedge$")]
     public void ThenProjection() =>
         Assert.True(double.IsFinite(_suggestion!.Projection.HoldPnl) &&
             double.IsFinite(_suggestion.Projection.ActPnl));
@@ -95,11 +95,11 @@ public sealed class OptionsSteps
     [When("the user exits it")]
     public void WhenExit() => _stopLeg!.Exit(80);
 
-    [Then(@"its realized P/L is \(40 - 80\) times lot size")]
+    [Then(@"^its realized P/L is \(40 - 80\) times lot size$")]
     public void ThenRealized() =>
         Assert.Equal((40 - 80) * _config.LotSize, _stopLeg!.RealizedPoints * _config.LotSize);
 
-    [Then("overall P/L updates")]
+    [Then(@"^overall P/L updates$")]
     public void ThenTotals() =>
         Assert.Equal(-40 * _config.LotSize,
             PortfolioMath.RealizedPnl([_stopLeg!], [], _config.LotSize));
@@ -114,7 +114,7 @@ public sealed class OptionsSteps
         _snapshot = _run.OnTick(new MarketTick(24900, 1.1, 2));
     }
 
-    [Then("overall P/L equals the sum of realized and unrealized P/L less cash fees")]
+    [Then(@"^overall P/L equals the sum of realized and unrealized P/L less cash fees$")]
     public void ThenNetPnl()
     {
         var totals = _snapshot!.Totals;
